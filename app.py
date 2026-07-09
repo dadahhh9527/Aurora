@@ -45,6 +45,11 @@ _rate_lock = threading.Lock()
 # —— 会话最近活跃时间，用于惰性清理过期会话记忆 ——
 _last_seen: dict[str, float] = {}
 
+# —— 惰性清理节流：最多每 60s 全量清理一次，避免每个请求都遍历 ——
+_PRUNE_INTERVAL = 60
+_last_prune = 0.0
+_prune_lock = threading.Lock()
+
 
 def _sse(event: dict) -> str:
     return f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
@@ -69,19 +74,34 @@ def _rate_ok(client_key: str) -> bool:
     return True
 
 
-def _prune_expired_sessions() -> None:
-    """惰性清理空闲超过 TTL 的会话记忆，避免 SQLite 无限增长。"""
-    if settings.SESSION_TTL_MINUTES <= 0:
-        return
-    ttl = settings.SESSION_TTL_MINUTES * 60
+def _maybe_prune() -> None:
+    """节流的惰性清理：最多每 _PRUNE_INTERVAL 秒执行一次，
+    同时回收过期的限流条目与空闲超时的会话记忆，防止内存/SQLite 无限增长。"""
+    global _last_prune
     now = time.time()
-    expired = [sid for sid, ts in list(_last_seen.items()) if now - ts > ttl]
-    for sid in expired:
-        try:
-            agent.checkpointer.delete_thread(sid)
-        except Exception as e:  # noqa: BLE001
-            logger.warning(f"[prune]清理会话失败 session={sid} err={str(e)}")
-        _last_seen.pop(sid, None)
+    if now - _last_prune < _PRUNE_INTERVAL:
+        return
+    with _prune_lock:
+        if now - _last_prune < _PRUNE_INTERVAL:
+            return
+        _last_prune = now
+
+    # 回收窗口内已无请求的限流条目（否则每个独立 IP+会话都会常驻）
+    with _rate_lock:
+        stale = [k for k, ts in _rate_hits.items() if all(now - t >= 60 for t in ts)]
+        for k in stale:
+            _rate_hits.pop(k, None)
+
+    # 清理空闲超过 TTL 的会话记忆
+    if settings.SESSION_TTL_MINUTES > 0:
+        ttl = settings.SESSION_TTL_MINUTES * 60
+        expired = [sid for sid, ts in list(_last_seen.items()) if now - ts > ttl]
+        for sid in expired:
+            try:
+                agent.checkpointer.delete_thread(sid)
+            except Exception as e:  # noqa: BLE001
+                logger.warning(f"[prune] failed to clear session={sid} err={str(e)}")
+            _last_seen.pop(sid, None)
 
 
 @app.middleware("http")
@@ -124,7 +144,7 @@ def chat(
     query = message.strip()
     if session:
         _last_seen[session] = time.time()
-    _prune_expired_sessions()
+    _maybe_prune()
 
     logger.info(f"[req {request_id}] chat session={session or '-'} query={query[:50]!r}")
 

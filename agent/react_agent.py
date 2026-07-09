@@ -122,7 +122,7 @@ class ReactAgent:
                             yield {"type": "thinking", "content": text}
                         for call in tool_calls:
                             name = call.get("name", "")
-                            yield {"type": "tool", "name": name, "label": TOOL_LABELS.get(name, "正在处理")}
+                            yield {"type": "tool", "name": name, "label": TOOL_LABELS.get(name, "Working")}
                     elif text:
                         yield {"type": "assistant", "content": text}
 
@@ -163,11 +163,11 @@ class ReactAgent:
                 if name and key not in emitted_tools:
                     emitted_tools.add(key)
                     yield {"type": "tool", "mid": mid, "name": name,
-                           "label": TOOL_LABELS.get(name, "正在处理")}
+                           "label": TOOL_LABELS.get(name, "Working")}
 
 
 if __name__ == '__main__':
     agent = ReactAgent()
     tid = "demo-session"
-    for event in agent.execute_token_events("我家是小户型，适合哪些扫地机器人", thread_id=tid):
+    for event in agent.execute_token_events("I live in a small apartment, which robot vacuum suits me?", thread_id=tid):
         print(event)

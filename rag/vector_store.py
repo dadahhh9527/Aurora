@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+import warnings
 
 # 把项目根目录加入 sys.path，保证直接运行本脚本时也能 import utils / model 等顶层包
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -48,10 +49,16 @@ class VectorStoreService:
 
     def search_with_scores(self, query: str, k: int) -> list[tuple[Document, float]]:
         """
-        返回 (文档, 相关性分数) 列表，分数范围约 0~1，越大越相关。
-        供上层做阈值过滤 / 重排使用。
+        Return a list of (document, relevance_score); higher is more relevant.
+        Used upstream for threshold filtering / reranking.
+
+        Chroma emits a noisy UserWarning when irrelevant docs get a relevance score
+        slightly outside [0, 1]; the value is still usable for ordering/thresholding,
+        so we silence just that warning to keep the console clean.
         """
-        return self.vector_store.similarity_search_with_relevance_scores(query, k=k)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="Relevance scores must be between 0 and 1")
+            return self.vector_store.similarity_search_with_relevance_scores(query, k=k)
 
     def _md5_store_path(self) -> str:
         return get_abs_path(chroma_conf["md5_hex_store"])
@@ -66,7 +73,7 @@ class VectorStoreService:
                 data = json.load(f)
             return data if isinstance(data, dict) else {}
         except (json.JSONDecodeError, OSError):
-            logger.warning("[加载知识库]检测到旧版 md5 记录，将按来源重新校验以清理脏数据")
+            logger.warning("[load KB] legacy md5 record detected; re-validating by source to clean stale data")
             return {}
 
     def _save_md5_map(self, md5_map: dict) -> None:
@@ -78,7 +85,7 @@ class VectorStoreService:
         try:
             self.vector_store._collection.delete(where={"source": source})
         except Exception as e:
-            logger.warning(f"[加载知识库]删除旧向量失败 source={source} err={str(e)}")
+            logger.warning(f"[load KB] failed to delete old vectors source={source} err={str(e)}")
 
     def load_document(self):
         """
@@ -104,39 +111,39 @@ class VectorStoreService:
             md5_hex = get_file_md5_hex(path)
 
             if not md5_hex:
-                logger.warning(f"[加载知识库]{path} 计算MD5失败，跳过")
+                logger.warning(f"[load KB] {path} MD5 computation failed, skipping")
                 continue
 
             if md5_map.get(path) == md5_hex:
-                logger.info(f"[加载知识库]{path} 内容未变化，跳过")
+                logger.info(f"[load KB] {path} unchanged, skipping")
                 continue
 
             try:
                 documents: list[Document] = get_file_documents(path)
 
                 if not documents:
-                    logger.warning(f"[加载知识库]{path}内没有有效文本内容，跳过")
+                    logger.warning(f"[load KB] {path} has no valid text content, skipping")
                     continue
 
                 split_document: list[Document] = self.spliter.split_documents(documents)
 
                 if not split_document:
-                    logger.warning(f"[加载知识库]{path}分片后没有有效文本内容，跳过")
+                    logger.warning(f"[load KB] {path} produced no chunks after splitting, skipping")
                     continue
 
-                # 文件更新时，先删除该来源的旧向量，再写入新内容，避免新旧并存
+                # On update, delete this source's old vectors before writing the new ones (avoid duplicates)
                 if path in md5_map:
                     self.delete_by_source(path)
 
                 self.vector_store.add_documents(split_document)
 
-                # 记录来源与其最新 md5
+                # Record the source and its latest md5
                 md5_map[path] = md5_hex
                 self._save_md5_map(md5_map)
 
-                logger.info(f"[加载知识库]{path} 内容加载成功（{len(split_document)} 个分片）")
+                logger.info(f"[load KB] {path} loaded successfully ({len(split_document)} chunks)")
             except Exception as e:
-                logger.error(f"[加载知识库]{path}加载失败：{str(e)}", exc_info=True)
+                logger.error(f"[load KB] {path} failed to load: {str(e)}", exc_info=True)
                 continue
 
 
@@ -147,7 +154,7 @@ if __name__ == '__main__':
 
     retriever = vs.get_retriever()
 
-    res = retriever.invoke("迷路")
+    res = retriever.invoke("robot gets lost while navigating")
     for r in res:
         print(r.page_content)
         print("-"*20)

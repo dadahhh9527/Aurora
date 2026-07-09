@@ -1,9 +1,10 @@
 """
-RAG 检索服务：根据用户问题，从向量库召回相关片段，做相关性阈值过滤（可选重排），
-返回精简后的参考资料文本。
+RAG retrieval service: recall relevant chunks from the vector store for a user question,
+apply a relevance-score threshold (with optional reranking), and return trimmed reference text.
 
-注意：这里不再单独调用一次 LLM 做总结，参考资料直接交由上层 ReactAgent 统一总结，
-避免“总结的总结”带来的双重 LLM 调用、额外延迟与信息损耗。
+Note: this no longer runs a separate LLM summarization pass. The reference material is handed
+straight to the outer ReactAgent to summarize, avoiding a "summary of a summary" (double LLM
+call, extra latency, information loss).
 """
 import os
 
@@ -25,12 +26,12 @@ class RagSummarizeService(object):
 
     @staticmethod
     def _source_name(metadata: dict) -> str:
-        """只保留来源文件名，避免把本地绝对路径等噪音/隐私塞进上下文。"""
+        """Keep only the source file name, so local absolute paths / noise never leak into context."""
         metadata = metadata or {}
         source = metadata.get("source", "")
-        name = os.path.basename(source) if source else "知识库"
+        name = os.path.basename(source) if source else "knowledge base"
         page = metadata.get("page")
-        return f"{name} 第{page}页" if page is not None else name
+        return f"{name} p.{page}" if page is not None else name
 
     def _rerank(self, query: str, scored: list[tuple[Document, float]]) -> list[tuple[Document, float]]:
         """用 DashScope gte-rerank 对候选做精排；任何异常都回退到相似度排序。"""
@@ -74,19 +75,20 @@ class RagSummarizeService(object):
         results = self.retrieve(query)
 
         if not results:
-            logger.info(f"[rag]未检索到与问题相关的资料：{query}")
-            return "（知识库中未检索到与该问题相关的资料，请结合通用常识谨慎回答或告知用户暂无相关资料）"
+            logger.info(f"[rag] no relevant material found for query: {query}")
+            return ("(No relevant material was found in the knowledge base for this question. "
+                    "Answer carefully using general knowledge, or tell the user no reference is available.)")
 
         blocks = []
         for i, (doc, _score) in enumerate(results, start=1):
             src = self._source_name(doc.metadata)
-            blocks.append(f"【参考资料{i}｜来源：{src}】\n{doc.page_content.strip()}")
+            blocks.append(f"[Reference {i} | source: {src}]\n{doc.page_content.strip()}")
 
         return "\n\n".join(blocks)
 
 
 if __name__ == '__main__':
     rag = RagSummarizeService()
-    print(rag.rag_summarize("小户型适合哪些扫地机器人"))
+    print(rag.rag_summarize("which robot vacuum suits a small apartment"))
     print("=" * 30)
-    print(rag.rag_summarize("今天股票怎么样"))
+    print(rag.rag_summarize("how are the stock markets today"))
