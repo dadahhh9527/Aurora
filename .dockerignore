@@ -1,0 +1,15 @@
+.git
+.gitignore
+.venv
+venv
+__pycache__
+*.pyc
+.env
+logs/
+chroma_db/
+checkpoints.sqlite*
+md5.text
+tests/
+.idea/
+.vscode/
+*.md

@@ -1,0 +1,5 @@
+external_data_path: data/external/records.csv
+# 敏感信息从环境变量 / .env 读取
+gaodekey: ${GAODE_KEY}
+gaode_base_url: https://restapi.amap.com
+gaode_timeout: 5

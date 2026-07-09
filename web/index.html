@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>智扫通 · 智能客服</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%230d9488'/%3E%3Cpath d='M9 20c3-6 11-6 14 0' stroke='white' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='12' r='2.2' fill='white'/%3E%3C/svg%3E" />
+</head>
+<body>
+  <div class="app">
+    <!-- 顶部品牌栏 -->
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="34" height="34">
+            <circle cx="16" cy="16" r="15" fill="url(#g)"></circle>
+            <path d="M8 21c3.5-7 12.5-7 16 0" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round"></path>
+            <circle cx="16" cy="12" r="2.6" fill="#fff"></circle>
+            <defs>
+              <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#14b8a6"></stop>
+                <stop offset="1" stop-color="#0d9488"></stop>
+              </linearGradient>
+            </defs>
+          </svg>
+        </span>
+        <div class="brand__text">
+          <h1 class="brand__name">智扫通</h1>
+          <p class="brand__sub">扫地机器人 · 智能客服</p>
+        </div>
+      </div>
+      <div class="status">
+        <span class="status__dot"></span>
+        <span class="status__label">在线</span>
+      </div>
+    </header>
+
+    <!-- 消息区 -->
+    <main id="messages" class="messages">
+      <section id="welcome" class="welcome">
+        <div class="welcome__avatar">
+          <svg viewBox="0 0 32 32" width="52" height="52">
+            <circle cx="16" cy="16" r="15" fill="url(#g2)"></circle>
+            <path d="M8 21c3.5-7 12.5-7 16 0" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round"></path>
+            <circle cx="16" cy="12" r="2.6" fill="#fff"></circle>
+            <defs>
+              <linearGradient id="g2" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#2dd4bf"></stop>
+                <stop offset="1" stop-color="#0d9488"></stop>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <h2 class="welcome__title">你好，我是小扫 👋</h2>
+        <p class="welcome__desc">扫地机 / 扫拖一体机的选购、使用、清洁保养、故障排查，都可以问我。</p>
+        <div class="chips" id="suggestions">
+          <button class="chip" type="button">小户型适合哪些扫地机器人？</button>
+          <button class="chip" type="button">拖布多久清洗一次比较好？</button>
+          <button class="chip" type="button">机器人总是卡在门槛上怎么办？</button>
+          <button class="chip" type="button">生成我这个月的使用报告</button>
+        </div>
+      </section>
+    </main>
+
+    <!-- 输入区 -->
+    <footer class="composer">
+      <form id="chat-form" class="composer__form" autocomplete="off">
+        <textarea
+          id="input"
+          class="composer__input"
+          rows="1"
+          placeholder="输入你的问题，Enter 发送，Shift + Enter 换行"
+          maxlength="1000"></textarea>
+        <button id="send" class="composer__send" type="submit" aria-label="发送">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path d="M4 12l16-8-6 8 6 8-16-8z" fill="currentColor"></path>
+          </svg>
+        </button>
+      </form>
+      <p class="composer__tip">内容由 AI 生成，仅供参考，请以官方说明书为准。</p>
+    </footer>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

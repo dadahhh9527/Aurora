@@ -1,0 +1,18 @@
+# Core app and LLM stack (recent stable, intentionally not bleeding-edge)
+fastapi==0.115.6
+uvicorn==0.34.0
+langchain==1.3.10
+langchain-community==0.4.1
+langchain-chroma==1.1.0
+langchain-openai==1.1.16
+langgraph==1.2.6
+langgraph-checkpoint-sqlite==2.0.10
+
+# Data/config and model provider dependencies
+PyYAML==6.0.2
+dashscope==1.25.13
+chromadb==1.5.4
+pypdf==6.8.0
+
+# Testing
+pytest==8.3.4
