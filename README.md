@@ -8,16 +8,13 @@
 
 ## Demo
 
-<!--
-  Add a screenshot and a short screen recording, then uncomment the lines below.
-  - docs/screenshot.png : a still of the chat UI mid-answer
-  - docs/demo.gif       : ~10s clip showing a question -> streamed answer -> a tool call
-
 ![Aurora chat UI](docs/screenshot.png)
+
+<!-- Optional: add a short screen recording (~10s: question -> streamed answer -> tool call) and uncomment:
 ![Aurora demo](docs/demo.gif)
 -->
 
-_Screenshot / GIF coming soon — run it locally in under a minute with the Quick Start below._
+> Run it locally in under a minute with the Quick Start below.
 
 ---
 
