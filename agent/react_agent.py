@@ -16,15 +16,15 @@ from agent.tools.agent_tools import (rag_summarize, get_weather, get_user_locati
 from agent.tools.middleware import monitor_tool, log_before_model, report_prompt_switch
 
 
-# 工具名 -> 面向用户的友好状态文案
+# Tool name -> user-facing status label
 TOOL_LABELS = {
-    "rag_summarize": "正在查阅知识库",
-    "get_weather": "正在查询天气",
-    "get_user_location": "正在定位所在城市",
-    "get_user_id": "正在核对账户信息",
-    "get_current_month": "正在获取当前月份",
-    "fetch_external_data": "正在读取使用记录",
-    "fill_context_for_report": "正在准备使用报告",
+    "rag_summarize": "Searching the knowledge base",
+    "get_weather": "Checking the weather",
+    "get_user_location": "Detecting your city",
+    "get_user_id": "Verifying account details",
+    "get_current_month": "Getting the current month",
+    "fetch_external_data": "Reading usage records",
+    "fill_context_for_report": "Preparing your usage report",
 }
 
 

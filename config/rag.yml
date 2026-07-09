@@ -1,7 +1,9 @@
-chat_model_name: qwen3-max
-embedding_model_name: text-embedding-v4
+# Model configuration.
+# Works with any OpenAI-compatible endpoint (OpenAI, Azure OpenAI, local models, etc.).
+# To use a different provider, set OPENAI_BASE_URL and the model names in your .env.
+chat_model_name: ${LLM_MODEL:-gpt-4o-mini}
+embedding_model_name: ${EMBEDDING_MODEL:-text-embedding-3-small}
 
-# OpenAI 兼容接入（阿里云百炼 compatible-mode）
-# 敏感信息从环境变量 / .env 读取，不要写死在此文件中
-api_key: ${DASHSCOPE_API_KEY}
-base_url: ${DASHSCOPE_BASE_URL:-https://ws-24nvgyct3cn7ppff.cn-beijing.maas.aliyuncs.com/compatible-mode/v1}
+# Credentials & endpoint are read from environment / .env (never hard-code secrets here)
+api_key: ${OPENAI_API_KEY}
+base_url: ${OPENAI_BASE_URL:-https://api.openai.com/v1}

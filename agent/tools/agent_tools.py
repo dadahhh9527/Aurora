@@ -1,232 +1,157 @@
-import os
-from utils.logger_handler import logger
-from langchain_core.tools import tool
-from rag.rag_service import RagSummarizeService
-import random
-from utils.config_handler import agent_conf
-from utils.path_tool import get_abs_path
 import json
+import os
+import random
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import urlopen
-from urllib.error import URLError, HTTPError
-import re
+
+from langchain_core.tools import tool
+
+from rag.rag_service import RagSummarizeService
+from utils.config_handler import agent_conf
+from utils.logger_handler import logger
+from utils.path_tool import get_abs_path
 
 _rag = None
 
 
 def _get_rag() -> RagSummarizeService:
-    # 懒加载单例，避免 import 本模块时就立刻连接向量库
+    # Lazy singleton so importing this module doesn't immediately connect to the vector store.
     global _rag
     if _rag is None:
         _rag = RagSummarizeService()
     return _rag
 
 
-user_ids = ["1001", "1002", "1003", "1004", "1005", "1006", "1007", "1008", "1009", "1010",]
+user_ids = ["1001", "1002", "1003", "1004", "1005", "1006", "1007", "1008", "1009", "1010"]
 month_arr = ["2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06",
-             "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", ]
+             "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12"]
 external_data = {}
 
-_IPV4_RE = re.compile(
-    r"^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\."
-    r"(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\."
-    r"(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\."
-    r"(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$"
-)
+# ---------------------------------------------------------------------------
+# Weather & geolocation via international, key-portable services:
+#   - Weather:   OpenWeatherMap (needs OPENWEATHER_API_KEY)
+#   - Location:  ip-api.com (free, no key required)
+# ---------------------------------------------------------------------------
+OPENWEATHER_API_KEY = (os.environ.get("OPENWEATHER_API_KEY") or "").strip()
+OPENWEATHER_BASE_URL = agent_conf.get("openweather_base_url", "https://api.openweathermap.org")
+WEATHER_TIMEOUT = float(agent_conf.get("weather_timeout", 5))
+LOCATION_TIMEOUT = float(agent_conf.get("location_timeout", 5))
 
-def _is_valid_ipv4(ip: str) -> bool:
-    return bool(_IPV4_RE.match(ip or ""))
 
-def _get_public_ip() -> str:
-    # 可在agent.yml里覆盖
-    ip_sources = agent_conf.get("public_ip_sources", [
-        "https://ipv4.icanhazip.com",
-    ])
-    timeout = float(agent_conf.get("public_ip_timeout", 3))
-    for source in ip_sources:
-        try:
-            with urlopen(source, timeout=timeout) as resp:
-                ip = resp.read().decode("utf-8").strip()
-                if _is_valid_ipv4(ip):
-                    return ip
-        except Exception:
-            continue
-
-    return ""
-
-GAODE_BASE_URL = agent_conf.get("gaode_base_url")
-GAODE_TIMEOUT = float(agent_conf.get("gaode_timeout"))
-
-def _gaode_get(path: str, params: dict) -> dict:
-    gaode_key = (agent_conf.get("gaodekey") or "").strip()
-    if not gaode_key:
-        raise ValueError("agent.yml中未配置gaodekey")
-
-    query = dict(params)
-    query["key"] = gaode_key
-    url = f"{GAODE_BASE_URL}{path}?{urlencode(query)}"
-
+def _http_get_json(url: str, timeout: float) -> dict:
     try:
-        with urlopen(url, timeout=GAODE_TIMEOUT) as resp:
-            data = resp.read().decode("utf-8")
-            return json.loads(data)
+        with urlopen(url, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
     except HTTPError as e:
-        raise RuntimeError(f"高德HTTP错误: {e.code}") from e
+        raise RuntimeError(f"HTTP error: {e.code}") from e
     except URLError as e:
-        raise RuntimeError(f"高德网络错误: {e.reason}") from e
+        raise RuntimeError(f"Network error: {e.reason}") from e
     except Exception as e:
-        raise RuntimeError(f"高德请求异常: {str(e)}") from e
+        raise RuntimeError(f"Request failed: {str(e)}") from e
 
 
-def _resolve_city_to_adcode(city: str) -> tuple[str, str]:
-    geo = _gaode_get("/v3/geocode/geo", {"address": city})
-    if geo.get("status") != "1" or not geo.get("geocodes"):
-        raise RuntimeError(f"城市解析失败: {geo.get('info', 'unknown')}")
-
-    first = geo["geocodes"][0]
-    adcode = first.get("adcode")
-    if not adcode:
-        raise RuntimeError("城市解析成功但未返回adcode")
-
-    resolved_city = first.get("city") or first.get("district") or city
-    if isinstance(resolved_city, list):
-        resolved_city = "".join(resolved_city)
-
-    return str(resolved_city), str(adcode)
-
-
-@tool(description="获取指定城市的天气，以消息字符串的形式返回")
+@tool(description="Get the current weather for a given city, returned as a plain-text string.")
 def get_weather(city: str) -> str:
     if not city or not city.strip():
-        return "未提供城市名称，无法查询天气"
+        return "No city was provided, unable to look up the weather."
+
+    if not OPENWEATHER_API_KEY:
+        return "Weather service is not configured (missing OPENWEATHER_API_KEY)."
 
     try:
-        resolved_city, adcode = _resolve_city_to_adcode(city.strip())
-        weather = _gaode_get(
-            "/v3/weather/weatherInfo",
-            {"city": adcode, "extensions": "base"},
-        )
+        params = urlencode({
+            "q": city.strip(),
+            "appid": OPENWEATHER_API_KEY,
+            "units": "metric",
+            "lang": "en",
+        })
+        data = _http_get_json(f"{OPENWEATHER_BASE_URL}/data/2.5/weather?{params}", WEATHER_TIMEOUT)
 
-        if weather.get("status") != "1" or not weather.get("lives"):
-            return f"城市{resolved_city}天气查询失败：{weather.get('info', 'unknown')}"
+        if str(data.get("cod")) != "200":
+            return f"Could not get the weather for {city}: {data.get('message', 'unknown error')}"
 
-        live = weather["lives"][0]
-        condition = live.get("weather", "未知")
-        temperature = live.get("temperature", "未知")
-        humidity = live.get("humidity", "未知")
-        wind_direction = live.get("winddirection", "未知")
-        wind_power = live.get("windpower", "未知")
-        report_time = live.get("reporttime", "未知")
-
+        description = data["weather"][0]["description"]
+        main = data.get("main", {})
+        wind = data.get("wind", {})
         return (
-            f"城市{resolved_city}天气为{condition}，气温{temperature}摄氏度，"
-            f"空气湿度{humidity}%，{wind_direction}风{wind_power}级，"
-            f"数据发布时间{report_time}。"
+            f"Weather in {data.get('name', city)}: {description}, "
+            f"temperature {main.get('temp')}°C (feels like {main.get('feels_like')}°C), "
+            f"humidity {main.get('humidity')}%, wind {wind.get('speed')} m/s."
         )
     except Exception as e:
-        logger.error(f"[get_weather]天气查询失败 city={city} err={str(e)}")
-        return f"城市{city}天气查询失败，请稍后重试"
+        logger.error(f"[get_weather] lookup failed city={city} err={str(e)}")
+        return f"Failed to fetch the weather for {city}, please try again later."
 
 
-@tool(description="获取用户所在城市的名称，以纯字符串形式返回")
+@tool(description="Get the city where the current user is located, returned as a plain-text string.")
 def get_user_location() -> str:
     try:
-        public_ip = _get_public_ip()
-        params = {"ip": public_ip} if public_ip else {}
-        ip_info = _gaode_get("/v3/ip", params)
-
-        if ip_info.get("status") != "1":
-            logger.warning(
-                f"[get_user_location]高德返回失败 info={ip_info.get('info')} "
-                f"infocode={ip_info.get('infocode')} ip={public_ip or 'none'}"
-            )
-            return "未知城市"
-
-        city = ip_info.get("city", "")
-        province = ip_info.get("province", "")
-
-        if isinstance(city, list):
-            city = "".join(city)
-        if isinstance(province, list):
-            province = "".join(province)
-
-        city = str(city).strip()
-        province = str(province).strip()
-
-        if city:
-            return city
-        if province:
-            return province
-
-        logger.warning(
-            f"[get_user_location]空城市信息 info={ip_info.get('info')} "
-            f"infocode={ip_info.get('infocode')} ip={public_ip or 'none'} raw={ip_info}"
+        data = _http_get_json(
+            "http://ip-api.com/json/?fields=status,message,city,regionName,country",
+            LOCATION_TIMEOUT,
         )
-        return "未知城市"
+        if data.get("status") != "success":
+            logger.warning(f"[get_user_location] geolocation failed: {data.get('message')}")
+            return "Unknown city"
 
+        return data.get("city") or data.get("regionName") or "Unknown city"
     except Exception as e:
-        logger.error(f"[get_user_location]定位失败 err={str(e)}")
-        return "未知城市"
+        logger.error(f"[get_user_location] failed err={str(e)}")
+        return "Unknown city"
 
 
-
-@tool(description="从向量存储中检索参考资料")
+@tool(description="Retrieve reference material from the knowledge base for a given query.")
 def rag_summarize(query: str) -> str:
     return _get_rag().rag_summarize(query)
 
 
-@tool(description="获取用户的ID，以纯字符串形式返回")
+@tool(description="Get the current user's ID as a plain-text string.")
 def get_user_id() -> str:
     return random.choice(user_ids)
 
 
-@tool(description="获取当前月份，以纯字符串形式返回")
+@tool(description="Get the current month as a plain-text string in YYYY-MM format.")
 def get_current_month() -> str:
     return random.choice(month_arr)
 
 
 def generate_external_data():
     """
+    Load per-user monthly usage records into memory:
     {
-        "user_id": {
-            "month" : {"特征": xxx, "效率": xxx, ...}
-            "month" : {"特征": xxx, "效率": xxx, ...}
-            "month" : {"特征": xxx, "效率": xxx, ...}
+        "<user_id>": {
+            "<month>": {"profile": ..., "cleaning_efficiency": ..., "consumables": ..., "comparison": ...},
             ...
         },
         ...
     }
-    :return:
     """
-    if not external_data:
-        external_data_path = get_abs_path(agent_conf["external_data_path"])
+    if external_data:
+        return
 
-        if not os.path.exists(external_data_path):
-            raise FileNotFoundError(f"外部数据文件{external_data_path}不存在")
+    external_data_path = get_abs_path(agent_conf["external_data_path"])
+    if not os.path.exists(external_data_path):
+        raise FileNotFoundError(f"External data file not found: {external_data_path}")
 
-        with open(external_data_path, "r", encoding="utf-8") as f:
-            for line in f.readlines()[1:]:
-                arr: list[str] = line.strip().split(",")
+    with open(external_data_path, "r", encoding="utf-8") as f:
+        for line in f.readlines()[1:]:
+            arr = [c.replace('"', "") for c in line.strip().split(",")]
+            if len(arr) < 6:
+                continue
 
-                user_id: str = arr[0].replace('"', "")
-                feature: str = arr[1].replace('"', "")
-                efficiency: str = arr[2].replace('"', "")
-                consumables: str = arr[3].replace('"', "")
-                comparison: str = arr[4].replace('"', "")
-                time: str = arr[5].replace('"', "")
+            user_id, profile, efficiency, consumables, comparison, month = arr[:6]
 
-                if user_id not in external_data:
-                    external_data[user_id] = {}
-
-                external_data[user_id][time] = {
-                    "特征": feature,
-                    "效率": efficiency,
-                    "耗材": consumables,
-                    "对比": comparison,
-                }
+            external_data.setdefault(user_id, {})
+            external_data[user_id][month] = {
+                "profile": profile,
+                "cleaning_efficiency": efficiency,
+                "consumables": consumables,
+                "comparison": comparison,
+            }
 
 
-@tool(description="从外部系统中获取指定用户在指定月份的使用记录，以纯字符串形式返回， 如果未检索到返回空字符串")
+@tool(description="Fetch a user's usage record for a given month. Returns an empty string if not found.")
 def fetch_external_data(user_id: str, month: str) -> str:
     generate_external_data()
 
@@ -234,14 +159,11 @@ def fetch_external_data(user_id: str, month: str) -> str:
         record = external_data[user_id][month]
         return json.dumps(record, ensure_ascii=False)
     except KeyError:
-        logger.warning(f"[fetch_external_data]未能检索到用户：{user_id}在{month}的使用记录数据")
+        logger.warning(f"[fetch_external_data] no usage record for user={user_id} month={month}")
         return ""
 
 
-@tool(description="无入参，无返回值，调用后触发中间件自动为报告生成的场景动态注入上下文信息，为后续提示词切换提供上下文信息")
+@tool(description="No input, no return value. Calling this triggers the middleware to switch to the "
+                  "report-generation prompt for subsequent turns.")
 def fill_context_for_report():
-    return "fill_context_for_report已调用"
-
-
-# if __name__ == '__main__':
-#     print(get_weather(get_user_location()))
+    return "fill_context_for_report called"

@@ -1,0 +1,50 @@
+Robot Vacuum Maintenance & Care
+
+Why maintenance matters
+Regular maintenance keeps suction strong, prevents odors, and extends the life of the robot and its consumables. Most performance complaints (weak suction, streaky mopping, short runtime) come from skipped maintenance.
+
+Dust bin
+Empty the dust bin after every few cleaning sessions, or daily in homes with pets or heavy debris. A full bin reduces suction and can trigger error warnings. For self-emptying docks, replace the dock dust bag when it is full (typically every 30-60 days).
+
+Filters
+Most robots use a foam pre-filter plus a HEPA filter.
+- Tap out loose dust after each bin emptying.
+- Rinse washable filters with cold water every 2-4 weeks, then air dry completely (24 hours) before reinstalling. Never install a damp filter.
+- Replace the HEPA filter every 2-3 months, or sooner if suction drops or allergies worsen.
+
+Main brush (roller)
+Hair and fibers wrap around the main brush over time.
+- Check weekly; cut away wrapped hair with the included tool or scissors.
+- Remove and clean the brush end caps and bearings monthly.
+- Replace the main brush every 6-12 months depending on use.
+
+Side brushes
+Side brushes bend and wear out.
+- Straighten bent bristles by soaking briefly in warm water.
+- Clean tangled hair off the side brush monthly.
+- Replace every 3-6 months when bristles stay bent or frayed.
+
+Sensors and charging contacts
+- Wipe cliff sensors (bottom of the robot) and the laser/camera lens with a dry microfiber cloth weekly. Dust on cliff sensors can make the robot behave as if it sees stairs.
+- Clean the metal charging contacts on the robot and dock with a dry cloth to ensure reliable charging.
+
+Wheels
+Check the main wheels and caster (front swivel wheel) for hair and debris every few weeks. A clogged caster causes the robot to drag or veer.
+
+Mop pads and water tank (combo models)
+- Rinse or machine-wash mop pads after each mopping session; replace fabric pads every 1-3 months.
+- Empty the dirty-water tank and rinse the clean-water tank regularly to prevent mildew.
+- Descale the water system periodically if you use hard water.
+- For docks with auto mop wash, clean the wash tray weekly to prevent buildup and odor.
+
+Battery care
+- Keep the robot on the dock when not in use so it stays charged.
+- If storing for a long time, charge to around 50% and store in a cool, dry place; recharge every few months.
+- Expect gradual capacity loss; replace the battery when runtime drops noticeably (often after 2-3 years).
+
+Recommended maintenance schedule
+- After each run: empty bin (pet homes), rinse mop pads.
+- Weekly: check main brush and caster, wipe sensors and lens.
+- Every 2-4 weeks: rinse filters, clean side brushes.
+- Every 2-3 months: replace HEPA filter, inspect side brush.
+- Every 6-12 months: replace main brush; assess battery health.

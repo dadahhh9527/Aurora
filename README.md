@@ -1,16 +1,33 @@
-# Zhisaotong · Robot Vacuum AI Customer Service
+# Aurora · Robot Vacuum AI Support
 
-> A robot-vacuum customer-service assistant built on a LangChain / LangGraph ReAct Agent with RAG. FastAPI backend, vanilla HTML/JS frontend, with token-level streaming, multi-turn memory, and incremental knowledge-base updates.
+> An AI customer-support assistant for robot vacuums, built on a LangChain / LangGraph ReAct Agent with RAG. FastAPI backend, vanilla HTML/JS frontend, with token-level streaming, multi-turn memory, and incremental knowledge-base updates.
+
+> **Works with any OpenAI-compatible endpoint** — OpenAI, Azure OpenAI, or local models (Ollama, vLLM, LM Studio). Defaults to `gpt-4o-mini` + `text-embedding-3-small`; point `OPENAI_BASE_URL` at any compatible provider to switch.
+
+---
+
+## Demo
+
+<!--
+  Add a screenshot and a short screen recording, then uncomment the lines below.
+  - docs/screenshot.png : a still of the chat UI mid-answer
+  - docs/demo.gif       : ~10s clip showing a question -> streamed answer -> a tool call
+
+![Aurora chat UI](docs/screenshot.png)
+![Aurora demo](docs/demo.gif)
+-->
+
+_Screenshot / GIF coming soon — run it locally in under a minute with the Quick Start below._
 
 ---
 
 ## Overview
 
-**Zhisaotong** is an AI customer-service application for robot vacuum / vacuum-mop users. Users ask questions in the web UI, and a ReAct (Reasoning + Acting) Agent autonomously plans and calls tools (knowledge-base retrieval, weather, geolocation, usage reports, etc.), grounds its answer in retrieved knowledge, and streams the reply back token by token.
+**Aurora** is an AI customer-support app for robot vacuum / vacuum-and-mop users. Users ask questions in the web UI, and a ReAct (Reasoning + Acting) Agent autonomously plans and calls tools (knowledge-base retrieval, weather, geolocation, usage reports, etc.), grounds its answer in retrieved knowledge, and streams the reply back token by token.
 
 Key features:
 
-- **RAG retrieval augmentation** — Product manuals, FAQs, troubleshooting and maintenance guides are vectorized. Retrieval filters by relevance score to avoid stuffing irrelevant material into the prompt, with optional reranking.
+- **RAG retrieval augmentation** — Product guides, FAQs, troubleshooting and maintenance docs are vectorized. Retrieval filters by relevance score to avoid stuffing irrelevant material into the prompt, with optional reranking.
 - **ReAct multi-tool calling** — The agent reasons and calls tools over multiple rounds until the user's need is met.
 - **Conversational memory** — Multi-turn memory via a LangGraph checkpointer, persisted to SQLite. Long conversations are automatically summarized to keep context and token cost under control.
 - **Token-level streaming** — Answers are pushed token by token over SSE; the frontend renders incrementally with safe Markdown formatting.
@@ -26,11 +43,11 @@ Key features:
 | Web framework | FastAPI + Uvicorn (SSE streaming) |
 | Frontend | Vanilla HTML / CSS / JavaScript (no framework) |
 | Agent | LangChain `create_agent` (ReAct) + LangGraph |
-| LLM | Alibaba Bailian `qwen3-max` (OpenAI-compatible via `langchain-openai`) |
-| Embedding | Alibaba `text-embedding-v4` |
+| LLM | Any OpenAI-compatible chat model (default `gpt-4o-mini`) via `langchain-openai` |
+| Embedding | Any OpenAI-compatible embedding model (default `text-embedding-3-small`) |
 | Vector store | Chroma (local persistence) |
 | Memory store | LangGraph SqliteSaver (`checkpoints.sqlite`) |
-| External services | Amap (Gaode) REST API (weather, IP geolocation) |
+| External services | OpenWeatherMap (weather) · ip-api.com (IP geolocation, no key) |
 
 ---
 
@@ -56,10 +73,10 @@ Key features:
               └──┬───────────┬────────────┬─────┘
                  │           │            │
                  ▼           ▼            ▼
-        ┌──────────────┐ ┌────────┐ ┌──────────────┐
-        │  RAG service │ │Amap API│ │ usage records │
-        │  rag/        │ │weather │ │ data/external │
-        └──────┬───────┘ └────────┘ └──────────────┘
+        ┌──────────────┐ ┌─────────┐ ┌──────────────┐
+        │  RAG service │ │ Weather │ │ usage records │
+        │  rag/        │ │  + geo  │ │ data/external │
+        └──────┬───────┘ └─────────┘ └──────────────┘
                ▼
         ┌──────────────────────────┐
         │ Chroma store (chroma_db/) │
@@ -98,7 +115,7 @@ Aurora/
 ├── config/
 │   ├── rag.yml                # Model names / access (references .env placeholders)
 │   ├── chroma.yml             # Vector store & retrieval params
-│   ├── agent.yml              # External service config (Amap, etc.)
+│   ├── agent.yml              # External service config (weather / geolocation)
 │   └── prompts.yml            # Prompt file paths
 ├── prompts/                   # Prompt texts
 ├── data/                      # KB documents (txt/pdf) + external/records.csv
@@ -136,17 +153,28 @@ cp .env.example .env
 Minimum required in `.env`:
 
 ```dotenv
-DASHSCOPE_API_KEY=your_bailian_api_key
-DASHSCOPE_BASE_URL=https://<your-compatible-endpoint>/compatible-mode/v1
-GAODE_KEY=your_amap_web_service_key
+OPENAI_API_KEY=sk-your-openai-api-key
+# Optional — only if you want the live weather tool
+OPENWEATHER_API_KEY=your-openweathermap-key
 ```
 
-- Bailian API key: <https://bailian.console.aliyun.com/>
-- Amap web-service key: <https://console.amap.com/>
+To use a provider other than OpenAI, set the endpoint and model names:
+
+```dotenv
+# Example: Azure OpenAI, a local model, or any OpenAI-compatible gateway
+OPENAI_BASE_URL=http://localhost:11434/v1
+LLM_MODEL=llama3.1
+EMBEDDING_MODEL=nomic-embed-text
+# Some endpoints cap embedding batch size:
+# EMBEDDING_BATCH_SIZE=10
+```
+
+- OpenAI API keys: <https://platform.openai.com/api-keys>
+- OpenWeatherMap (free tier): <https://openweathermap.org/api>
 
 ### 4. Build the knowledge base
 
-Put `.txt` / `.pdf` files into `data/`, then ingest (required on first run):
+Sample English docs are included under `data/`. Add your own `.txt` / `.pdf` files there, then ingest (required on first run):
 
 ```bash
 python -m rag.vector_store
@@ -170,9 +198,12 @@ Open <http://127.0.0.1:8000> to start chatting.
 
 | Variable | Default | Description |
 |---|---|---|
-| `DASHSCOPE_API_KEY` | — (required) | LLM / Embedding access key |
-| `DASHSCOPE_BASE_URL` | built-in default | OpenAI-compatible endpoint URL |
-| `GAODE_KEY` | — (needed for weather/geo) | Amap web-service key |
+| `OPENAI_API_KEY` | — (required) | API key for the LLM / embedding provider |
+| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | Any OpenAI-compatible endpoint |
+| `LLM_MODEL` | `gpt-4o-mini` | Chat model name |
+| `EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model name |
+| `EMBEDDING_BATCH_SIZE` | `10` | Texts per embedding request (raise for OpenAI to speed up) |
+| `OPENWEATHER_API_KEY` | empty | OpenWeatherMap key; empty disables the weather tool |
 | `LLM_TIMEOUT` | `60` | Per model-call timeout (seconds) |
 | `LLM_MAX_RETRIES` | `2` | Model-call retry count |
 | `APP_API_KEY` | empty | When set, `/api/*` requires `?key=...`; empty disables auth |
@@ -192,7 +223,7 @@ Open <http://127.0.0.1:8000> to start chatting.
 k: 3                    # snippets finally passed to the model
 candidate_k: 20         # initial candidate pool size
 score_threshold: 0.3    # relevance threshold; below this is treated as irrelevant and dropped
-rerank_enabled: false   # enable DashScope gte-rerank reranking
+rerank_enabled: false   # enable reranking (requires a rerank-capable endpoint)
 chunk_size: 400         # text chunk size (requires re-ingest to apply)
 chunk_overlap: 50
 ```
@@ -237,8 +268,8 @@ chunk_overlap: 50
 | Tool | Description |
 |---|---|
 | `rag_summarize` | Retrieve relevant material from the vector knowledge base |
-| `get_weather` | Query real-time weather for a city (Amap) |
-| `get_user_location` | Resolve the user's city via IP (Amap) |
+| `get_weather` | Get real-time weather for a city (OpenWeatherMap) |
+| `get_user_location` | Resolve the user's city via IP (ip-api.com) |
 | `get_user_id` | Get the current user ID |
 | `get_current_month` | Get the current month |
 | `fetch_external_data` | Fetch a user's usage records for a given month |
@@ -267,8 +298,8 @@ Covers pure logic (no network): file-suffix filtering, MD5 computation, `.env` v
 ## Deployment (Docker)
 
 ```bash
-docker build -t zhisaotong .
-docker run -d -p 8000:8000 --env-file .env --name zhisaotong zhisaotong
+docker build -t aurora .
+docker run -d -p 8000:8000 --env-file .env --name aurora aurora
 ```
 
 The image includes a health check and runs a single worker by default (paired with SQLite memory). For multiple replicas in production, switch to an external memory store.
@@ -292,6 +323,6 @@ The image includes a health check and runs a single worker by default (paired wi
 
 ---
 
-## License & Acknowledgements
+## License
 
-For learning and reference purposes only. Thanks to Alibaba Bailian, Amap Open Platform, and other open platforms for their capabilities.
+Released under the MIT License. See [LICENSE](LICENSE) for details. For learning and reference purposes.

@@ -118,7 +118,7 @@
     }
     if (thinking) {
       statusEl.innerHTML =
-        '<span class="typing"><span></span><span></span><span></span></span><span>小扫正在思考…</span>';
+        '<span class="typing"><span></span><span></span><span></span></span><span>Aurora is thinking…</span>';
     } else {
       statusEl.innerHTML = '<span class="spinner"></span><span></span>';
       statusEl.lastChild.textContent = text;
@@ -164,7 +164,7 @@
       if (live.row && live.row.parentNode) live.row.remove();
       live = null;
     }
-    showStatus((label || "正在处理") + "…", false);
+    showStatus((label || "Working") + "…", false);
   }
 
   /* ---------- 收发 ---------- */
@@ -219,12 +219,12 @@
           gotAnswer = true;
           finalizeLive();
           clearStatus();
-          { const { bubble } = addRow("bot"); bubble.textContent = data.content || "服务开小差了，请稍后再试～"; }
+          { const { bubble } = addRow("bot"); bubble.textContent = data.content || "Something went wrong on our side. Please try again shortly."; }
           break;
         case "done":
           if (!gotAnswer) {
             const { bubble } = addRow("bot");
-            bubble.textContent = "我暂时没有找到合适的答案，可以换个说法再问我一次～";
+            bubble.textContent = "I couldn't find a good answer just yet — try rephrasing your question.";
           }
           finish();
           break;
@@ -235,7 +235,7 @@
       if (source.readyState === EventSource.CLOSED || !streaming) return;
       if (!gotAnswer) {
         const { bubble } = addRow("bot");
-        bubble.textContent = "网络连接中断了，请检查后重试～";
+        bubble.textContent = "The connection was interrupted. Please check your network and try again.";
       }
       finish();
     };

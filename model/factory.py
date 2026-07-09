@@ -9,6 +9,9 @@ from utils.config_handler import rag_conf
 # 大模型调用超时与重试（防止上游卡死拖垮整条请求）
 LLM_TIMEOUT = float(os.environ.get("LLM_TIMEOUT", 60))
 LLM_MAX_RETRIES = int(os.environ.get("LLM_MAX_RETRIES", 2))
+# 每批 embedding 的文本条数。默认 10 以兼容对 batch 有硬限制的端点；
+# 使用 OpenAI 官方接口可调大（如 512）以提速。
+EMBEDDING_BATCH_SIZE = int(os.environ.get("EMBEDDING_BATCH_SIZE", 10))
 
 
 class BaseModelFactory(ABC):
@@ -34,10 +37,10 @@ class EmbeddingsFactory(BaseModelFactory):
             model=rag_conf["embedding_model_name"],
             api_key=rag_conf["api_key"],
             base_url=rag_conf["base_url"],
-            # 阿里云兼容端点只接受字符串输入，禁用tiktoken分词避免发送token数组
+            # 部分 OpenAI 兼容端点只接受字符串输入，禁用 tiktoken 分词避免发送 token 数组
             check_embedding_ctx_length=False,
-            # 阿里云兼容端点单次 embedding 请求最多 10 条文本，超过会报 400，控制每批发送数量
-            chunk_size=10,
+            # 控制单次请求的文本条数，兼容对 batch 有上限的端点
+            chunk_size=EMBEDDING_BATCH_SIZE,
         )
 
 

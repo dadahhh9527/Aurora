@@ -1,0 +1,43 @@
+Robot Vacuum Frequently Asked Questions
+
+How often should I run my robot vacuum?
+For most homes, daily or every other day keeps floors consistently clean. Homes with pets or children benefit from daily runs. Scheduling a daily clean while you are out is the easiest routine.
+
+How often should I clean or replace the mop pads?
+Rinse or machine-wash reusable mop pads after every mopping session. Replace fabric pads every 1-3 months, sooner if they stay stained or smell after washing. For docks with auto mop wash, still inspect the pads weekly.
+
+Can a robot vacuum clean carpets?
+Yes. Most robots handle low- and medium-pile carpet. Models with carpet boost automatically increase suction on carpet. High-pile or shag carpet is challenging for most robots. Combo models should lift the mop pad on carpet to avoid wetting it.
+
+Will it fall down the stairs?
+No. Robot vacuums have cliff sensors on the underside that detect drops and stop before edges. Keep these sensors clean, since dust can affect them. On very dark floors, cliff sensors can occasionally misread; clean them and test near any drop-offs.
+
+How long does the battery last per charge?
+Typical runtime is 90-180 minutes depending on suction level and model. Higher suction and carpet boost shorten runtime. Many robots auto-return to the dock, recharge, and resume cleaning where they left off.
+
+Does it work in the dark?
+LiDAR-based robots navigate fine in the dark because they use a laser, not a camera. Camera-based (vSLAM) robots need some ambient light and may struggle in fully dark rooms.
+
+Is a robot vacuum good for pet hair?
+Yes, if you choose the right model: strong suction (3000 Pa+), a tangle-resistant rubber main brush, a HEPA filter, and a sealed bin. Expect to clean the brush and empty the bin more often in pet homes.
+
+Do I still need to vacuum manually?
+A robot handles routine maintenance cleaning very well, but you may still occasionally clean tight corners, deep carpet, stairs, and areas under low furniture the robot cannot reach.
+
+How loud is a robot vacuum?
+Most run around 55-70 dB, similar to a normal conversation to a dishwasher. Higher suction modes are louder. Scheduling cleans while you are out avoids the noise entirely.
+
+Can it handle multiple floors?
+The robot cannot climb stairs, but LiDAR models can store multiple floor maps. Carry the robot to each floor; it recognizes the map for that level. A separate dock per floor makes this smoother.
+
+How do I set up no-go zones?
+In the companion app, open the map and draw virtual walls or no-go zones around areas you want the robot to avoid (pet bowls, cables, delicate rugs). No physical strips are needed for app-based models.
+
+What is a self-emptying dock?
+A dock that automatically empties the robot's onboard bin into a larger sealed bag, so you only handle dust every few weeks instead of after each run. Replace the dock bag when full.
+
+Why does my robot miss the same spot every time?
+Usually the area is blocked by furniture lower than the robot, tangled in cables, or outside the mapped zone. Clear obstacles, update the map, or set a targeted room clean.
+
+How long do robot vacuums last?
+With regular maintenance, most last 3-5 years. Consumables (brushes, filters, pads, battery) are replaceable, which extends the useful life.

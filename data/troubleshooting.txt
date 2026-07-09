@@ -1,0 +1,61 @@
+Robot Vacuum Troubleshooting
+
+Robot keeps getting stuck on thresholds or door sills
+Robots can usually climb obstacles up to about 2 cm. If it gets stuck:
+- Check the threshold height; add a small ramp for sills taller than the climbing limit.
+- Clean the main wheels and caster wheel of hair, which reduces traction.
+- Set a virtual no-go zone or boundary in the app around problem thresholds.
+- Make sure the robot approaches the sill straight on, not at a sharp angle.
+
+Weak or reduced suction
+- Empty the dust bin and check it is seated correctly.
+- Clean or replace the filter; a clogged filter is the most common cause.
+- Remove hair wrapped around the main brush.
+- Check the suction inlet and hose path for clogs.
+
+Robot returns to dock before finishing / short runtime
+- Clean the charging contacts on the robot and dock.
+- Check that the dock has power and is on a hard, level surface against a wall.
+- Reduce suction level or turn off carpet boost for longer runtime.
+- A battery that no longer holds charge may need replacement (common after 2-3 years).
+
+Robot won't charge or won't dock
+- Wipe the metal charging contacts on both the robot and the dock.
+- Keep at least 0.5 m of clear space on each side and 1.5 m in front of the dock.
+- Ensure the dock is plugged in and the power indicator is on.
+- Restart the robot and place it manually on the dock to reset the charge cycle.
+
+Navigation problems / robot bumps into things or misses areas
+- Wipe the LiDAR turret or camera lens with a dry microfiber cloth.
+- Ensure adequate lighting for camera-based (vSLAM) models.
+- Re-run mapping after rearranging furniture.
+- Clear cables and small objects; use no-go zones for cluttered areas.
+
+Robot thinks it is at the edge of stairs on flat floor
+- Clean the cliff sensors on the underside; dust or dark flooring can confuse them.
+- On very dark or high-gloss floors, place light-colored tape or enable a low-drop / carpet setting if available.
+
+Mopping leaves streaks or the floor stays dirty (combo models)
+- Rinse or replace the mop pad; a dirty pad smears rather than cleans.
+- Refill the clean-water tank and check the water-flow setting.
+- Descale the water system if you use hard water.
+- Vacuum first, then mop, so loose debris is not pushed around.
+
+Wi-Fi or app connection issues
+- Robots typically connect to 2.4 GHz Wi-Fi only, not 5 GHz.
+- Keep the robot near the router during setup.
+- Restart the router and the robot, then re-add the device in the app.
+- Update the app and robot firmware to the latest version.
+
+Loud or unusual noise
+- Check the main brush and side brushes for tangled hair or debris.
+- Inspect the caster wheel and main wheels.
+- A rattling sound may mean debris is stuck in the fan intake; power off and clear it.
+
+Error codes
+Error codes vary by brand. As a general approach: note the code, check the app or manual for its meaning, clear the obvious cause (bin, brush, wheel, sensor), then restart. If the error persists after cleaning and restarting, contact the manufacturer's support.
+
+Robot leaves some areas uncleaned
+- Furniture lower than the robot's height blocks access; raise it or accept the gap.
+- Set the robot to clean specific rooms or run a second targeted pass.
+- Increase cleaning mode from quick to standard or deep.

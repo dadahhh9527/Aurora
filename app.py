@@ -1,11 +1,11 @@
 """
-智扫通智能客服 —— FastAPI 服务入口
+Aurora Robot Vacuum Support — FastAPI entrypoint
 
-- GET  /                 首页（前端页面）
-- GET  /api/chat         SSE 流式对话接口（token 级流式，EventSource）
-- POST /api/admin/reload 重新加载知识库（需鉴权）
-- GET  /api/health       健康检查
-- /static/*              前端静态资源
+- GET  /                 Frontend page
+- GET  /api/chat         SSE streaming chat (token-level, EventSource)
+- POST /api/admin/reload Reload the knowledge base (auth required)
+- GET  /api/health       Health check
+- /static/*              Frontend static assets
 """
 import json
 import os
@@ -26,7 +26,7 @@ from utils.logger_handler import logger
 
 WEB_DIR = get_abs_path("web")
 
-app = FastAPI(title="智扫通智能客服", docs_url=None, redoc_url=None)
+app = FastAPI(title="Aurora Robot Vacuum Support", docs_url=None, redoc_url=None)
 
 app.add_middleware(
     CORSMiddleware,
@@ -113,13 +113,13 @@ def chat(
     request_id = getattr(request.state, "request_id", "-")
 
     if not _check_auth(key):
-        return JSONResponse({"detail": "未授权"}, status_code=401)
+        return JSONResponse({"detail": "Unauthorized"}, status_code=401)
 
     client_ip = request.client.host if request.client else "unknown"
     client_key = f"{client_ip}:{session or '-'}"
     if not _rate_ok(client_key):
-        logger.warning(f"[req {request_id}] 限流触发 client={client_key}")
-        return JSONResponse({"detail": "请求过于频繁，请稍后再试"}, status_code=429)
+        logger.warning(f"[req {request_id}] rate limit hit client={client_key}")
+        return JSONResponse({"detail": "Too many requests, please try again shortly."}, status_code=429)
 
     query = message.strip()
     if session:
@@ -130,16 +130,16 @@ def chat(
 
     def event_stream():
         if not query:
-            yield _sse({"type": "error", "content": "消息不能为空"})
+            yield _sse({"type": "error", "content": "Message cannot be empty."})
             yield _sse({"type": "done"})
             return
 
         try:
             for event in agent.execute_token_events(query, thread_id=session):
                 yield _sse(event)
-        except Exception as e:  # noqa: BLE001 —— 兜底，避免整条连接直接断开无提示
-            logger.error(f"[req {request_id}] 对话处理失败：{str(e)}", exc_info=True)
-            yield _sse({"type": "error", "content": "服务开小差了，请稍后再试～"})
+        except Exception as e:  # noqa: BLE001 —— fallback so the stream never dies silently
+            logger.error(f"[req {request_id}] chat handling failed: {str(e)}", exc_info=True)
+            yield _sse({"type": "error", "content": "Something went wrong on our side. Please try again shortly."})
         finally:
             yield _sse({"type": "done"})
 
@@ -157,18 +157,18 @@ def chat(
 @app.post("/api/admin/reload")
 def reload_knowledge(request: Request, key: str = Query(None)):
     if not _check_auth(key):
-        return JSONResponse({"detail": "未授权"}, status_code=401)
+        return JSONResponse({"detail": "Unauthorized"}, status_code=401)
 
     def _run():
         try:
             from rag.vector_store import VectorStoreService
             VectorStoreService().load_document()
-            logger.info("[admin]知识库重新加载完成")
+            logger.info("[admin] knowledge base reloaded")
         except Exception as e:  # noqa: BLE001
-            logger.error(f"[admin]知识库加载失败：{str(e)}", exc_info=True)
+            logger.error(f"[admin] knowledge base reload failed: {str(e)}", exc_info=True)
 
     threading.Thread(target=_run, daemon=True).start()
-    return JSONResponse({"detail": "知识库加载已在后台开始"})
+    return JSONResponse({"detail": "Knowledge base reload started in the background."})
 
 
 @app.get("/")

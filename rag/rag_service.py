@@ -44,16 +44,16 @@ class RagSummarizeService(object):
                 documents=[d.page_content for d in docs],
                 top_n=min(self.k, len(docs)),
                 return_documents=False,
-                api_key=os.environ.get("DASHSCOPE_API_KEY"),
+                api_key=os.environ.get("RERANK_API_KEY"),
             )
 
             if resp.status_code != 200 or not getattr(resp, "output", None):
-                logger.warning(f"[rerank]调用失败 code={resp.status_code}，回退相似度排序")
+                logger.warning(f"[rerank] call failed code={resp.status_code}, falling back to similarity order")
                 return sorted(scored, key=lambda x: x[1], reverse=True)
 
             return [(docs[r.index], float(r.relevance_score)) for r in resp.output.results]
         except Exception as e:
-            logger.warning(f"[rerank]异常：{str(e)}，回退相似度排序")
+            logger.warning(f"[rerank] error: {str(e)}, falling back to similarity order")
             return sorted(scored, key=lambda x: x[1], reverse=True)
 
     def retrieve(self, query: str) -> list[tuple[Document, float]]:

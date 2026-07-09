@@ -4,17 +4,18 @@ data_path: data
 md5_hex_store: md5.text
 allow_knowledge_file_type: ["txt", "pdf"]
 
-# 文本切分（修改后需重新灌库才对已有数据生效）
+# Text splitting (re-ingest after changing these for existing data to take effect)
 chunk_size: 400
 chunk_overlap: 50
-# 去掉英文 "."，避免把型号/小数/网址错误切开；中文优先按段落与句末标点切分
-separators: ["\n\n", "\n", "。", "！", "？", "!", "?", "；", ";", " ", ""]
+# Split on paragraphs/newlines first, then sentence punctuation
+separators: ["\n\n", "\n", ". ", "! ", "? ", "; ", " ", ""]
 
-# 检索相关参数
-k: 3                    # 最终喂给模型的片段数
-candidate_k: 20         # 初步召回候选数（供阈值过滤 / 重排使用）
-score_threshold: 0.3    # 相关性分数阈值，低于此值视为“不相关”，直接丢弃
+# Retrieval parameters
+k: 3                    # number of chunks finally passed to the model
+candidate_k: 20         # initial recall candidates (used for threshold filtering / rerank)
+score_threshold: 0.3    # relevance score threshold; chunks below this are dropped as irrelevant
 
-# 重排（rerank）：需要标准 DashScope Key，默认关闭；开启后先召回 candidate_k 再精排取 k
+# Reranking: requires a rerank-capable endpoint; disabled by default.
+# When enabled, recall candidate_k chunks first, then rerank down to k.
 rerank_enabled: false
 rerank_model: gte-rerank-v2

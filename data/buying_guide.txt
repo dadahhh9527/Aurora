@@ -1,0 +1,49 @@
+Robot Vacuum Buying Guide
+
+How to choose the right robot vacuum
+Choosing a robot vacuum comes down to your floor type, home size, whether you have pets, and how much manual work you want to avoid. Read the sections below to match a model to your home.
+
+Suction power (Pa)
+Suction is measured in pascals (Pa).
+- 1500-2000 Pa: fine for hard floors (tile, laminate, hardwood) and light dust in small apartments.
+- 2500-4000 Pa: recommended for low-pile carpets and homes with some pet hair.
+- 5000 Pa and above: best for medium-pile carpet, heavy pet hair, and larger homes.
+Higher suction uses more battery, so balance suction with runtime and noise.
+
+Small apartments (under 70 sq meters / 750 sq ft)
+For small apartments, a compact model with 2000-2500 Pa suction, gyroscope or basic LiDAR navigation, and a slim body (under 9.5 cm tall) is usually enough. A large dust bin matters less because runs are short. Look for good edge-cleaning brushes to reach along skirting boards.
+
+Large homes (over 100 sq meters / 1000 sq ft)
+For large homes, prioritize LiDAR navigation with multi-floor mapping, a battery of 5000 mAh or more, and automatic recharge-and-resume so the robot returns to finish where it left off. A self-emptying dock reduces how often you touch the dust bin.
+
+Homes with pets
+For pet owners, choose a model with a tangle-resistant rubber (or dual) main brush, strong suction (3000 Pa+), a HEPA filter to trap dander, and a sealed dust bin. Anti-tangle brushes greatly reduce hair wrapping around the roller.
+
+Vacuum-only vs vacuum-and-mop combo
+- Vacuum-only: simpler, cheaper, best if you rarely mop or have mostly carpet.
+- Vacuum-and-mop combo: cleans and mops in one pass. Look for a lifting mop pad (so it lifts on carpet), electronically controlled water flow, and, ideally, a dock that washes and dries the mop pads.
+Combo robots are ideal for hard floors like tile and sealed hardwood.
+
+Navigation types
+- Random/bump navigation: cheapest, no mapping, inefficient coverage. Fine for a single small room.
+- Gyroscope navigation: tidy back-and-forth pattern, decent for small homes.
+- LiDAR (laser) navigation: precise real-time mapping, no-go zones, and multi-room/multi-floor maps. Best coverage and the recommended choice for most buyers.
+- Camera/vSLAM: good obstacle recognition; performance can drop in very dark rooms.
+
+Dock and maintenance features
+- Self-emptying dock: empties the robot's bin into a larger bag, so you handle dust every few weeks instead of daily.
+- Auto mop wash and dry: rinses and hot-air dries the mop pads to prevent odor.
+- Auto water refill: tops up the robot's clean-water tank from the dock.
+These features cost more up front but dramatically cut daily effort.
+
+Budget guidance
+- Entry level: reliable vacuuming, basic navigation, manual bin emptying.
+- Mid range: LiDAR mapping, app control, combo mopping, larger battery.
+- Premium: self-emptying, auto mop wash and dry, obstacle avoidance, multi-floor maps.
+Buy the cheapest model that covers your must-have features rather than paying for features you will not use.
+
+Quick recommendations
+- Small hard-floor apartment: mid-range combo, 2500 Pa, LiDAR, slim body.
+- Large home, no pets: LiDAR with multi-floor maps, 5000 mAh battery, self-emptying dock.
+- Pet household: tangle-resistant brush, 3000 Pa+, HEPA filter, self-emptying dock.
+- Mostly carpet: high suction (5000 Pa+), carpet boost, avoid heavy mopping features.

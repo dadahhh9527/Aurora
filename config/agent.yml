@@ -1,5 +1,8 @@
 external_data_path: data/external/records.csv
-# 敏感信息从环境变量 / .env 读取
-gaodekey: ${GAODE_KEY}
-gaode_base_url: https://restapi.amap.com
-gaode_timeout: 5
+
+# Weather via OpenWeatherMap (API key read from OPENWEATHER_API_KEY in the environment / .env)
+openweather_base_url: https://api.openweathermap.org
+weather_timeout: 5
+
+# Geolocation via ip-api.com (free, no API key required)
+location_timeout: 5
