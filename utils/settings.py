@@ -1,10 +1,10 @@
 """
-应用级运行时配置：统一从环境变量 / .env 读取，均带合理默认值。
-（config_handler 在导入时已负责加载 .env，这里只做读取。）
+Application runtime settings loaded from environment variables or .env.
+config_handler loads .env before these values are read.
 """
 import os
 
-from utils.config_handler import _load_dotenv  # noqa: F401  确保 .env 已加载
+from utils.config_handler import _load_dotenv
 
 _load_dotenv()
 
@@ -23,24 +23,55 @@ def _get_float(key: str, default: float) -> float:
         return default
 
 
-# —— 鉴权：设置了 APP_API_KEY 才开启校验；为空则不校验（方便本地开发） ——
-APP_API_KEY: str = (os.environ.get("APP_API_KEY") or "").strip()
+def _get_bool(key: str, default: bool) -> bool:
+    raw = os.environ.get(key)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
-# —— 限流：单个客户端（IP + 会话）每分钟允许的对话请求数 ——
+
+# Runtime mode: Debug keeps the login-free demo; production requires local accounts.
+APP_DEBUG: bool = _get_bool("APP_DEBUG", False)
+
+# Application database and local login sessions.
+APP_DB_PATH: str = os.environ.get("APP_DB_PATH", "aurora.sqlite")
+AUTH_SESSION_HOURS: int = _get_int("AUTH_SESSION_HOURS", 12)
+MIN_PASSWORD_LENGTH: int = _get_int("MIN_PASSWORD_LENGTH", 10)
+COOKIE_SECURE: bool = _get_bool("COOKIE_SECURE", False)
+
+# Per-client rate limits.
 RATE_LIMIT_PER_MIN: int = _get_int("RATE_LIMIT_PER_MIN", 20)
+LOGIN_RATE_LIMIT_PER_MIN: int = _get_int("LOGIN_RATE_LIMIT_PER_MIN", 10)
 
-# —— CORS：允许的来源，逗号分隔；默认 * ——
+# Comma-separated CORS origins.
 ALLOWED_ORIGINS: list[str] = [
-    o.strip() for o in (os.environ.get("ALLOWED_ORIGINS", "*")).split(",") if o.strip()
+    o.strip()
+    for o in os.environ.get(
+        "ALLOWED_ORIGINS",
+        "http://127.0.0.1:8000,http://localhost:8000",
+    ).split(",")
+    if o.strip()
 ]
 
-# —— 记忆持久化：SQLite 文件路径；会话空闲过期时间（分钟） ——
+# Conversation checkpoint path and idle expiration.
 MEMORY_DB_PATH: str = os.environ.get("MEMORY_DB_PATH", "checkpoints.sqlite")
 SESSION_TTL_MINUTES: int = _get_int("SESSION_TTL_MINUTES", 180)
 
-# —— 摘要式记忆裁剪：消息数超过 trigger 时触发摘要，保留最近 keep 条 ——
+# Summarize history after the trigger and retain the most recent messages.
 SUMMARY_TRIGGER_MESSAGES: int = _get_int("SUMMARY_TRIGGER_MESSAGES", 30)
 SUMMARY_KEEP_MESSAGES: int = _get_int("SUMMARY_KEEP_MESSAGES", 12)
 
-# —— 单次对话内最多的模型调用轮数（防止工具死循环烧钱） ——
+# Maximum model calls per turn to prevent runaway tool loops.
 MODEL_RUN_LIMIT: int = _get_int("MODEL_RUN_LIMIT", 12)
+
+# Long-term memory stores stable user facts, not full conversations.
+LONG_TERM_MEMORY_ENABLED: bool = _get_bool("LONG_TERM_MEMORY_ENABLED", True)
+LONG_TERM_MEMORY_LIMIT: int = _get_int("LONG_TERM_MEMORY_LIMIT", 30)
+LONG_TERM_MEMORY_EXTRACT_LIMIT: int = _get_int("LONG_TERM_MEMORY_EXTRACT_LIMIT", 5)
+LONG_TERM_MEMORY_MIN_CONFIDENCE: float = _get_float(
+    "LONG_TERM_MEMORY_MIN_CONFIDENCE", 0.8
+)
+
+# Local knowledge scans run only during the web application lifespan.
+KB_SCAN_ENABLED: bool = _get_bool("KB_SCAN_ENABLED", True)
+KB_SCAN_INTERVAL_SECONDS: int = _get_int("KB_SCAN_INTERVAL_SECONDS", 600)

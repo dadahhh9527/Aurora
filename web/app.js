@@ -7,19 +7,26 @@
   const inputEl = document.getElementById("input");
   const sendEl = document.getElementById("send");
   const suggestionsEl = document.getElementById("suggestions");
+  const currentUserEl = document.getElementById("current-user");
+  const adminLinkEl = document.getElementById("admin-link");
+  const logoutEl = document.getElementById("logout");
+  const newChatEl = document.getElementById("new-chat");
 
   let streaming = false;
-  let currentSource = null;
+  let currentController = null;
 
-  // 会话ID：仅存在于当前页面内存中，刷新页面即重新生成 -> 记忆随之清空
-  const SESSION_ID = "s-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+  function newConversationId() {
+    if (window.crypto && crypto.randomUUID) return "c-" + crypto.randomUUID();
+    return "c-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 12);
+  }
+  let conversationId = newConversationId();
 
   const BOT_AVATAR =
     '<svg viewBox="0 0 32 32" width="18" height="18">' +
     '<path d="M8 21c3.5-7 12.5-7 16 0" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round"></path>' +
     '<circle cx="16" cy="12" r="2.6" fill="#fff"></circle></svg>';
 
-  /* ---------- 安全 Markdown 渲染（先转义再套用有限格式，避免 XSS） ---------- */
+  /* ---------- Safe Markdown rendering: escape first, then apply limited formatting ---------- */
   function escapeHtml(s) {
     return s
       .replace(/&/g, "&amp;")
@@ -30,7 +37,7 @@
 
   function renderMarkdown(src) {
     const codeBlocks = [];
-    // 抽出代码块占位，避免内部内容被二次处理
+    // Extract code blocks so their content is not processed twice.
     let text = src.replace(/```([\s\S]*?)```/g, (_, code) => {
       codeBlocks.push(code.replace(/^\n+|\n+$/g, ""));
       return "\u0000CODE" + (codeBlocks.length - 1) + "\u0000";
@@ -38,16 +45,16 @@
 
     text = escapeHtml(text);
 
-    // 行内代码、加粗、斜体
+    // Inline code, bold, and italic text.
     text = text.replace(/`([^`]+)`/g, "<code>$1</code>");
     text = text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
     text = text.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
 
-    // 链接（仅允许 http/https）
+    // Links are restricted to HTTP and HTTPS.
     text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
       '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
 
-    // 按行处理列表与段落
+    // Process lists and paragraphs line by line.
     const lines = text.split("\n");
     let html = "";
     let listType = null;
@@ -77,14 +84,14 @@
     }
     closeList();
 
-    // 还原代码块
+    // Restore escaped code blocks.
     html = html.replace(/\u0000CODE(\d+)\u0000/g, (_, i) =>
       "<pre><code>" + escapeHtml(codeBlocks[+i]) + "</code></pre>");
 
     return html;
   }
 
-  /* ---------- 基础 DOM ---------- */
+  /* ---------- Basic DOM helpers ---------- */
   function scrollToBottom() { messagesEl.scrollTop = messagesEl.scrollHeight; }
 
   function hideWelcome() {
@@ -108,7 +115,7 @@
     return { row, bubble };
   }
 
-  /* 状态条：思考中 / 工具调用中 */
+  /* Status line for model work and tool calls. */
   let statusEl = null;
   function showStatus(text, thinking) {
     if (!statusEl) {
@@ -130,7 +137,7 @@
     statusEl = null;
   }
 
-  /* ---------- 流式渲染状态 ---------- */
+  /* ---------- Streaming render state ---------- */
   let live = null; // { mid, raw, bubble, row, hadTool }
 
   function finalizeLive() {
@@ -152,13 +159,13 @@
   function onToken(mid, content) {
     if (!live || live.mid !== mid) startLive(mid);
     live.raw += content;
-    // 流式过程中用纯文本 + 光标，结束时再渲染 Markdown
+    // Stream plain text with a cursor, then render Markdown when complete.
     live.bubble.textContent = live.raw;
     scrollToBottom();
   }
 
   function onTool(mid, label) {
-    // 该消息触发了工具 -> 属于“思考”，丢弃其流式文本，改为展示工具状态
+    // A tool call marks this message as internal work; replace it with tool status.
     if (live && live.mid === mid) {
       live.hadTool = true;
       if (live.row && live.row.parentNode) live.row.remove();
@@ -167,7 +174,7 @@
     showStatus((label || "Working") + "…", false);
   }
 
-  /* ---------- 收发 ---------- */
+  /* ---------- Request and response handling ---------- */
   function setBusy(busy) {
     streaming = busy;
     sendEl.disabled = busy;
@@ -175,7 +182,7 @@
     if (!busy) { inputEl.focus(); autoGrow(); }
   }
 
-  function send(text) {
+  async function send(text) {
     const query = (text || "").trim();
     if (!query || streaming) return;
 
@@ -189,23 +196,20 @@
     showStatus("", true);
 
     let gotAnswer = false;
-    const url =
-      "/api/chat?message=" + encodeURIComponent(query) +
-      "&session=" + encodeURIComponent(SESSION_ID);
-    const source = new EventSource(url);
-    currentSource = source;
-
+    const controller = new AbortController();
+    currentController = controller;
     const finish = () => {
-      source.close();
-      if (currentSource === source) currentSource = null;
+      if (currentController === controller) currentController = null;
       finalizeLive();
       clearStatus();
       setBusy(false);
     };
 
-    source.onmessage = (e) => {
+    const handleEvent = (eventText) => {
+      const dataLine = eventText.split("\n").find((line) => line.startsWith("data:"));
+      if (!dataLine) return false;
       let data;
-      try { data = JSON.parse(e.data); } catch (_) { return; }
+      try { data = JSON.parse(dataLine.slice(5).trim()); } catch (_) { return false; }
 
       switch (data.type) {
         case "token":
@@ -226,22 +230,57 @@
             const { bubble } = addRow("bot");
             bubble.textContent = "I couldn't find a good answer just yet — try rephrasing your question.";
           }
-          finish();
-          break;
+          return true;
       }
+      return false;
     };
 
-    source.onerror = () => {
-      if (source.readyState === EventSource.CLOSED || !streaming) return;
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        signal: controller.signal,
+        body: JSON.stringify({ message: query, conversation_id: conversationId }),
+      });
+      if (response.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      if (!response.ok || !response.body) {
+        const detail = await response.json().catch(() => ({}));
+        throw new Error(detail.detail || "Request failed.");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let pending = "";
+      let doneEvent = false;
+      while (!doneEvent) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        pending += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+        const frames = pending.split("\n\n");
+        pending = frames.pop() || "";
+        for (const frame of frames) {
+          if (handleEvent(frame)) {
+            doneEvent = true;
+            break;
+          }
+        }
+      }
+    } catch (error) {
+      if (error.name === "AbortError") return;
       if (!gotAnswer) {
         const { bubble } = addRow("bot");
-        bubble.textContent = "The connection was interrupted. Please check your network and try again.";
+        bubble.textContent = error.message || "The connection was interrupted. Please try again.";
       }
+    } finally {
       finish();
-    };
+    }
   }
 
-  /* ---------- 输入框 ---------- */
+  /* ---------- Composer ---------- */
   function autoGrow() {
     inputEl.style.height = "auto";
     inputEl.style.height = Math.min(inputEl.scrollHeight, 160) + "px";
@@ -259,5 +298,43 @@
     });
   }
 
+  async function loadIdentity() {
+    const response = await fetch("/api/auth/me", { credentials: "same-origin" });
+    if (response.status === 401) {
+      window.location.href = "/login";
+      return;
+    }
+    if (!response.ok) return;
+    const data = await response.json();
+    if (currentUserEl) currentUserEl.textContent = data.user.username;
+    if (adminLinkEl && data.user.role === "admin") adminLinkEl.hidden = false;
+  }
+
+  if (logoutEl) {
+    logoutEl.addEventListener("click", async () => {
+      if (currentController) currentController.abort();
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+      window.location.href = "/login";
+    });
+  }
+
+  if (newChatEl) {
+    newChatEl.addEventListener("click", async () => {
+      if (currentController) currentController.abort();
+      await fetch("/api/conversations/current", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ conversation_id: conversationId }),
+      }).catch(() => {});
+      conversationId = newConversationId();
+      window.location.reload();
+    });
+  }
+
+  loadIdentity().catch(() => {});
   inputEl.focus();
 })();

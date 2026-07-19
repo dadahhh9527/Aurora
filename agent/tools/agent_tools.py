@@ -1,6 +1,8 @@
+import csv
 import json
 import os
-import random
+import threading
+from datetime import datetime, timezone
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import urlopen
@@ -11,6 +13,7 @@ from rag.rag_service import RagSummarizeService
 from utils.config_handler import agent_conf
 from utils.logger_handler import logger
 from utils.path_tool import get_abs_path
+from services.runtime_context import get_current_user_id
 
 _rag = None
 
@@ -23,10 +26,8 @@ def _get_rag() -> RagSummarizeService:
     return _rag
 
 
-user_ids = ["1001", "1002", "1003", "1004", "1005", "1006", "1007", "1008", "1009", "1010"]
-month_arr = ["2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06",
-             "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12"]
 external_data = {}
+_external_data_lock = threading.Lock()
 
 # ---------------------------------------------------------------------------
 # Weather & geolocation via international, key-portable services:
@@ -108,12 +109,12 @@ def rag_summarize(query: str) -> str:
 
 @tool(description="Get the current user's ID as a plain-text string.")
 def get_user_id() -> str:
-    return random.choice(user_ids)
+    return get_current_user_id()
 
 
 @tool(description="Get the current month as a plain-text string in YYYY-MM format.")
 def get_current_month() -> str:
-    return random.choice(month_arr)
+    return datetime.now(timezone.utc).strftime("%Y-%m")
 
 
 def generate_external_data():
@@ -127,33 +128,34 @@ def generate_external_data():
         ...
     }
     """
-    if external_data:
-        return
+    with _external_data_lock:
+        if external_data:
+            return
 
-    external_data_path = get_abs_path(agent_conf["external_data_path"])
-    if not os.path.exists(external_data_path):
-        raise FileNotFoundError(f"External data file not found: {external_data_path}")
+        external_data_path = get_abs_path(agent_conf["external_data_path"])
+        if not os.path.exists(external_data_path):
+            raise FileNotFoundError(
+                f"External data file not found: {external_data_path}"
+            )
 
-    with open(external_data_path, "r", encoding="utf-8") as f:
-        for line in f.readlines()[1:]:
-            arr = [c.replace('"', "") for c in line.strip().split(",")]
-            if len(arr) < 6:
-                continue
-
-            user_id, profile, efficiency, consumables, comparison, month = arr[:6]
-
-            external_data.setdefault(user_id, {})
-            external_data[user_id][month] = {
-                "profile": profile,
-                "cleaning_efficiency": efficiency,
-                "consumables": consumables,
-                "comparison": comparison,
-            }
+        with open(external_data_path, "r", encoding="utf-8", newline="") as data_file:
+            for row in csv.DictReader(data_file):
+                user_id = (row.get("user_id") or "").strip()
+                month = (row.get("month") or "").strip()
+                if not user_id or not month:
+                    continue
+                external_data.setdefault(user_id, {})[month] = {
+                    "profile": row.get("profile", ""),
+                    "cleaning_efficiency": row.get("cleaning_efficiency", ""),
+                    "consumables": row.get("consumables", ""),
+                    "comparison": row.get("comparison", ""),
+                }
 
 
-@tool(description="Fetch a user's usage record for a given month. Returns an empty string if not found.")
-def fetch_external_data(user_id: str, month: str) -> str:
+@tool(description="Fetch the authenticated user's usage record for a given month. Returns an empty string if not found.")
+def fetch_external_data(month: str) -> str:
     generate_external_data()
+    user_id = get_current_user_id()
 
     try:
         record = external_data[user_id][month]

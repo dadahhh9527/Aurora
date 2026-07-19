@@ -1,14 +1,15 @@
-"""无需联网的纯逻辑单元测试。"""
+"""Offline unit tests for utility functions."""
 import hashlib
 import os
 
 from utils.file_handler import listdir_with_allowed_type, get_file_md5_hex
 from utils.config_handler import _resolve_env
+from utils.content import content_to_text
 
 
 class TestListdirWithAllowedType:
     def test_non_dir_returns_empty_tuple(self):
-        # 传入不存在/非目录时应返回空元组（回归此前误返回后缀元组的 bug）
+        # A missing directory must return an empty result.
         assert listdir_with_allowed_type("no_such_dir_xxx", (".txt",)) == tuple()
 
     def test_filters_by_suffix(self, tmp_path):
@@ -19,6 +20,13 @@ class TestListdirWithAllowedType:
         result = listdir_with_allowed_type(str(tmp_path), ("txt", "pdf"))
         names = sorted(os.path.basename(p) for p in result)
         assert names == ["a.txt", "b.pdf"]
+
+    def test_scans_nested_knowledge_directories(self, tmp_path):
+        nested = tmp_path / "manuals" / "model-x"
+        nested.mkdir(parents=True)
+        (nested / "guide.TXT").write_text("x", encoding="utf-8")
+        result = listdir_with_allowed_type(str(tmp_path), ("txt", "pdf"))
+        assert result == (str(nested / "guide.TXT"),)
 
 
 class TestFileMd5:
@@ -48,3 +56,9 @@ class TestResolveEnv:
             "url": "https://example.com/api",
             "items": ["example.com", "plain"],
         }
+
+
+def test_content_to_text_normalizes_multipart_messages():
+    assert content_to_text(
+        [{"type": "text", "text": "hello"}, " ", {"text": "world"}]
+    ) == "hello world"

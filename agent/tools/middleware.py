@@ -16,7 +16,10 @@ def monitor_tool(
 ) -> ToolMessage | Command:
     # Monitor tool execution
     logger.info(f"[tool monitor] running tool: {request.tool_call['name']}")
-    logger.info(f"[tool monitor] args: {request.tool_call['args']}")
+    logger.debug(
+        "[tool monitor] argument names: %s",
+        sorted((request.tool_call.get("args") or {}).keys()),
+    )
 
     try:
         result = handler(request)
@@ -42,8 +45,12 @@ def log_before_model(
     last_message = state["messages"][-1]
     # content may be a str or a list (multimodal / tool calls); coerce to str for logging
     content = last_message.content
-    content_text = content.strip() if isinstance(content, str) else str(content)
-    logger.debug(f"[log_before_model]{type(last_message).__name__} | {content_text}")
+    content_size = len(content) if isinstance(content, (str, list)) else 0
+    logger.debug(
+        "[log_before_model] %s content_size=%s",
+        type(last_message).__name__,
+        content_size,
+    )
 
     return None
 
@@ -52,7 +59,9 @@ def log_before_model(
 def report_prompt_switch(request: ModelRequest):
     # Dynamically switch the system prompt for report-generation turns
     is_report = request.runtime.context.get("report", False)
-    if is_report:
-        return load_report_prompts()
+    prompt = load_report_prompts() if is_report else load_system_prompts()
+    long_term_memory = request.runtime.context.get("long_term_memory", "")
+    if long_term_memory:
+        prompt = f"{prompt}\n\n{long_term_memory}"
 
-    return load_system_prompts()
+    return prompt

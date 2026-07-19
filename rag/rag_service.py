@@ -34,7 +34,7 @@ class RagSummarizeService(object):
         return f"{name} p.{page}" if page is not None else name
 
     def _rerank(self, query: str, scored: list[tuple[Document, float]]) -> list[tuple[Document, float]]:
-        """用 DashScope gte-rerank 对候选做精排；任何异常都回退到相似度排序。"""
+        """Rerank candidates with DashScope and fall back to similarity ordering."""
         try:
             from dashscope import TextReRank
 
@@ -60,7 +60,7 @@ class RagSummarizeService(object):
     def retrieve(self, query: str) -> list[tuple[Document, float]]:
         scored = self.vector_store.search_with_scores(query, k=self.candidate_k)
 
-        # 相关性阈值过滤：低于阈值的直接丢弃，避免“答非所问也硬塞资料”
+        # Discard low-relevance chunks instead of forcing unrelated context.
         filtered = [(d, s) for d, s in scored if s is not None and s >= self.score_threshold]
 
         if not filtered:
@@ -85,10 +85,3 @@ class RagSummarizeService(object):
             blocks.append(f"[Reference {i} | source: {src}]\n{doc.page_content.strip()}")
 
         return "\n\n".join(blocks)
-
-
-if __name__ == '__main__':
-    rag = RagSummarizeService()
-    print(rag.rag_summarize("which robot vacuum suits a small apartment"))
-    print("=" * 30)
-    print(rag.rag_summarize("how are the stock markets today"))

@@ -1,7 +1,7 @@
 collection_name: agent
-persist_directory: chroma_db
-data_path: data
-md5_hex_store: md5.text
+persist_directory: ${CHROMA_DB_PATH:-chroma_db}
+data_path: ${KNOWLEDGE_DATA_PATH:-data}
+md5_hex_store: ${KB_MANIFEST_PATH:-md5.text}
 allow_knowledge_file_type: ["txt", "pdf"]
 
 # Text splitting (re-ingest after changing these for existing data to take effect)

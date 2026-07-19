@@ -1,59 +1,66 @@
+from __future__ import annotations
+
 import os
 import hashlib
+from typing import TYPE_CHECKING
+
 from utils.logger_handler import logger
-from langchain_core.documents import Document
-from langchain_community.document_loaders import PyPDFLoader, TextLoader
+
+if TYPE_CHECKING:
+    from langchain_core.documents import Document
 
 
-def get_file_md5_hex(filepath: str):     # 获取文件的md5的十六进制字符串
+def get_file_md5_hex(filepath: str):
+    """Return a file's MD5 hex digest, or None when it cannot be read."""
 
     if not os.path.exists(filepath):
-        logger.error(f"[md5计算]文件{filepath}不存在")
+        logger.error("[md5] file does not exist: %s", filepath)
         return
 
     if not os.path.isfile(filepath):
-        logger.error(f"[md5计算]路径{filepath}不是文件")
+        logger.error("[md5] path is not a file: %s", filepath)
         return
 
-    md5_obj = hashlib.md5()
+    md5_obj = hashlib.md5(usedforsecurity=False)
 
-    chunk_size = 4096       # 4KB分片，避免文件过大爆内存
+    chunk_size = 4096
     try:
-        with open(filepath, "rb") as f:     # 必须二进制读取
+        with open(filepath, "rb") as f:
             while chunk := f.read(chunk_size):
                 md5_obj.update(chunk)
-
-            """
-            chunk = f.read(chunk_size)
-            while chunk:
-                
-                md5_obj.update(chunk)
-                chunk = f.read(chunk_size)
-            """
-            md5_hex = md5_obj.hexdigest()
-            return md5_hex
-    except Exception as e:
-        logger.error(f"计算文件{filepath}md5失败，{str(e)}")
+        return md5_obj.hexdigest()
+    except OSError as exc:
+        logger.error("[md5] failed to hash %s: %s", filepath, exc)
         return None
 
 
-def listdir_with_allowed_type(path: str, allowed_types: tuple[str]):        # 返回文件夹内的文件列表（允许的文件后缀）
+def listdir_with_allowed_type(path: str, allowed_types: tuple[str]):
+    """Recursively return files whose suffix matches an allowed type."""
     files = []
 
     if not os.path.isdir(path):
-        logger.error(f"[listdir_with_allowed_type]{path}不是文件夹")
+        logger.error("[knowledge files] path is not a directory: %s", path)
         return tuple()
 
-    for f in os.listdir(path):
-        if f.endswith(allowed_types):
-            files.append(os.path.join(path, f))
+    normalized_types = tuple(
+        suffix.lower() if suffix.startswith(".") else f".{suffix.lower()}"
+        for suffix in allowed_types
+    )
+    for root, _, names in os.walk(path):
+        for name in names:
+            if name.lower().endswith(normalized_types):
+                files.append(os.path.join(root, name))
 
-    return tuple(files)
+    return tuple(sorted(files))
 
 
 def pdf_loader(filepath: str, passwd=None) -> list[Document]:
+    from langchain_community.document_loaders import PyPDFLoader
+
     return PyPDFLoader(filepath, passwd).load()
 
 
 def txt_loader(filepath: str) -> list[Document]:
+    from langchain_community.document_loaders import TextLoader
+
     return TextLoader(filepath, encoding="utf-8").load()

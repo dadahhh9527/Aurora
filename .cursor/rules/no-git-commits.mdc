@@ -1,0 +1,11 @@
+---
+description: Prohibit agents from creating Git commits in this project
+alwaysApply: true
+---
+
+# No Agent-Created Git Commits
+
+- Never create, amend, squash, rebase, tag, or push a Git commit.
+- Do not run `git add` unless the user explicitly requests staging only.
+- Use read-only Git commands for inspection and leave implementation changes uncommitted.
+- If asked to commit, explain that this project rule prohibits agent-created commits.

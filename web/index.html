@@ -10,7 +10,7 @@
 </head>
 <body>
   <div class="app">
-    <!-- 顶部品牌栏 -->
+    <!-- Brand header -->
     <header class="topbar">
       <div class="brand">
         <span class="brand__mark" aria-hidden="true">
@@ -31,13 +31,19 @@
           <p class="brand__sub">Robot Vacuum · AI Support</p>
         </div>
       </div>
-      <div class="status">
-        <span class="status__dot"></span>
-        <span class="status__label">Online</span>
+      <div class="topbar__actions">
+        <button id="new-chat" class="topbar__button" type="button">New chat</button>
+        <a id="admin-link" class="topbar__button" href="/admin" hidden>Admin</a>
+        <span id="current-user" class="status__label"></span>
+        <button id="logout" class="topbar__button" type="button">Log out</button>
+        <div class="status">
+          <span class="status__dot"></span>
+          <span class="status__label">Online</span>
+        </div>
       </div>
     </header>
 
-    <!-- 消息区 -->
+    <!-- Messages -->
     <main id="messages" class="messages">
       <section id="welcome" class="welcome">
         <div class="welcome__avatar">
@@ -64,7 +70,7 @@
       </section>
     </main>
 
-    <!-- 输入区 -->
+    <!-- Composer -->
     <footer class="composer">
       <form id="chat-form" class="composer__form" autocomplete="off">
         <textarea

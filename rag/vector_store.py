@@ -1,10 +1,9 @@
 import json
+import hashlib
 import os
-import sys
+import threading
+import time
 import warnings
-
-# 把项目根目录加入 sys.path，保证直接运行本脚本时也能 import utils / model 等顶层包
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
@@ -21,7 +20,7 @@ class VectorStoreService:
     _initialized = False
 
     def __new__(cls, *args, **kwargs):
-        # 单例：全局共用一个向量库连接，避免重复创建 Chroma 客户端
+        # Reuse one Chroma client throughout the process.
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
@@ -43,9 +42,16 @@ class VectorStoreService:
             separators=chroma_conf["separators"],
             length_function=len,
         )
-
-    def get_retriever(self):
-        return self.vector_store.as_retriever(search_kwargs={"k": chroma_conf["k"]})
+        # Queries wait during updates so they never observe a partially updated store.
+        self._operation_lock = threading.RLock()
+        self._status_lock = threading.Lock()
+        self._status = {
+            "running": False,
+            "last_started_at": None,
+            "last_finished_at": None,
+            "last_result": None,
+            "last_error": None,
+        }
 
     def search_with_scores(self, query: str, k: int) -> list[tuple[Document, float]]:
         """
@@ -56,107 +62,225 @@ class VectorStoreService:
         slightly outside [0, 1]; the value is still usable for ordering/thresholding,
         so we silence just that warning to keep the console clean.
         """
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", message="Relevance scores must be between 0 and 1")
-            return self.vector_store.similarity_search_with_relevance_scores(query, k=k)
+        with self._operation_lock:
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", message="Relevance scores must be between 0 and 1")
+                return self.vector_store.similarity_search_with_relevance_scores(query, k=k)
 
     def _md5_store_path(self) -> str:
         return get_abs_path(chroma_conf["md5_hex_store"])
 
     def _load_md5_map(self) -> dict:
-        """读取 {来源文件路径: md5} 映射。兼容旧的纯 md5 列表（读不出就当空，触发一次重建）。"""
+        """Load the source-to-MD5 manifest and flag legacy data for rebuilding."""
+        self._manifest_requires_rebuild = False
         path = self._md5_store_path()
         if not os.path.exists(path):
+            self._manifest_requires_rebuild = True
             return {}
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            return data if isinstance(data, dict) else {}
+            if isinstance(data, dict):
+                return data
+            self._manifest_requires_rebuild = True
+            logger.warning("[load KB] legacy md5 list detected; rebuilding collection")
+            return {}
         except (json.JSONDecodeError, OSError):
             logger.warning("[load KB] legacy md5 record detected; re-validating by source to clean stale data")
+            self._manifest_requires_rebuild = True
             return {}
 
     def _save_md5_map(self, md5_map: dict) -> None:
-        with open(self._md5_store_path(), "w", encoding="utf-8") as f:
+        path = self._md5_store_path()
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        temp_path = f"{path}.tmp"
+        with open(temp_path, "w", encoding="utf-8") as f:
             json.dump(md5_map, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temp_path, path)
+
+    @staticmethod
+    def _source_id(path: str, data_root: str) -> str:
+        return os.path.relpath(path, data_root).replace("\\", "/")
+
+    def status(self) -> dict:
+        with self._status_lock:
+            return dict(self._status)
 
     def delete_by_source(self, source: str) -> None:
-        """按来源文件删除向量库中已有的分片，避免文件更新后旧内容残留。"""
+        """Delete all vector chunks associated with a source file."""
         try:
             self.vector_store._collection.delete(where={"source": source})
         except Exception as e:
             logger.warning(f"[load KB] failed to delete old vectors source={source} err={str(e)}")
 
-    def load_document(self):
+    def load_document(self, *, trigger: str = "manual", wait: bool = True) -> dict:
         """
-        从数据文件夹读取知识文件 -> 切分 -> 向量入库。
-        以「来源文件 + MD5」做增量：未变的跳过；变更/新增的先删旧向量再写入新的。
+        Synchronize local knowledge files to Chroma.
+
+        Source IDs and MD5 hashes make the operation incremental. Unchanged files
+        are skipped, while additions, updates, and deletions are applied safely.
         """
 
+        acquired = self._operation_lock.acquire(blocking=wait)
+        if not acquired:
+            return {"status": "busy", "trigger": trigger}
+
+        started_at = time.time()
+        with self._status_lock:
+            self._status.update(
+                running=True,
+                last_started_at=started_at,
+                last_error=None,
+            )
+
+        result = {
+            "status": "ok",
+            "trigger": trigger,
+            "added": 0,
+            "updated": 0,
+            "deleted": 0,
+            "unchanged": 0,
+            "failed": 0,
+        }
+
         def get_file_documents(read_path: str):
-            if read_path.endswith("txt"):
+            suffix = os.path.splitext(read_path)[1].lower()
+            if suffix == ".txt":
                 return txt_loader(read_path)
-            if read_path.endswith("pdf"):
+            if suffix == ".pdf":
                 return pdf_loader(read_path)
             return []
 
-        allowed_files_path: tuple[...] = listdir_with_allowed_type(
-            get_abs_path(chroma_conf["data_path"]),
-            tuple(chroma_conf["allow_knowledge_file_type"]),
-        )
+        try:
+            data_root = get_abs_path(chroma_conf["data_path"])
+            allowed_files_path: tuple[...] = listdir_with_allowed_type(
+                data_root,
+                tuple(chroma_conf["allow_knowledge_file_type"]),
+            )
+            old_map = self._load_md5_map()
+            new_map: dict[str, str] = {}
+            current_sources: set[str] = set()
+            current_legacy_paths = set(allowed_files_path)
+            rebuilt_ids: set[str] = set()
 
-        md5_map = self._load_md5_map()
+            for path in allowed_files_path:
+                source = self._source_id(path, data_root)
+                current_sources.add(source)
+                md5_hex = get_file_md5_hex(path)
+                legacy_md5 = old_map.get(path)
+                previous_md5 = old_map.get(source)
 
-        for path in allowed_files_path:
-            md5_hex = get_file_md5_hex(path)
-
-            if not md5_hex:
-                logger.warning(f"[load KB] {path} MD5 computation failed, skipping")
-                continue
-
-            if md5_map.get(path) == md5_hex:
-                logger.info(f"[load KB] {path} unchanged, skipping")
-                continue
-
-            try:
-                documents: list[Document] = get_file_documents(path)
-
-                if not documents:
-                    logger.warning(f"[load KB] {path} has no valid text content, skipping")
+                if not md5_hex:
+                    logger.warning(f"[load KB] {source} MD5 computation failed, skipping")
+                    result["failed"] += 1
+                    if previous_md5:
+                        new_map[source] = previous_md5
                     continue
 
-                split_document: list[Document] = self.spliter.split_documents(documents)
-
-                if not split_document:
-                    logger.warning(f"[load KB] {path} produced no chunks after splitting, skipping")
+                # Migrate legacy absolute source paths so host paths never leak.
+                if previous_md5 == md5_hex and legacy_md5 is None:
+                    new_map[source] = md5_hex
+                    result["unchanged"] += 1
                     continue
 
-                # On update, delete this source's old vectors before writing the new ones (avoid duplicates)
-                if path in md5_map:
-                    self.delete_by_source(path)
+                try:
+                    documents: list[Document] = get_file_documents(path)
+                    for document in documents:
+                        document.metadata["source"] = source
+                        document.metadata["source_md5"] = md5_hex
 
-                self.vector_store.add_documents(split_document)
+                    if not documents:
+                        raise ValueError("file has no valid text content")
 
-                # Record the source and its latest md5
-                md5_map[path] = md5_hex
-                self._save_md5_map(md5_map)
+                    split_document: list[Document] = self.spliter.split_documents(documents)
+                    if not split_document:
+                        raise ValueError("file produced no chunks after splitting")
 
-                logger.info(f"[load KB] {path} loaded successfully ({len(split_document)} chunks)")
-            except Exception as e:
-                logger.error(f"[load KB] {path} failed to load: {str(e)}", exc_info=True)
-                continue
+                    # Add the new version before deleting old IDs so failures preserve data.
+                    old_ids = self.vector_store._collection.get(
+                        where={"source": source}, include=[]
+                    ).get("ids", [])
+                    if legacy_md5 is not None or self._manifest_requires_rebuild:
+                        legacy_ids = self.vector_store._collection.get(
+                            where={"source": path}, include=[]
+                        ).get("ids", [])
+                    else:
+                        legacy_ids = []
+                    ids = [
+                        hashlib.sha256(
+                            f"{source}:{md5_hex}:{index}".encode("utf-8")
+                        ).hexdigest()
+                        for index in range(len(split_document))
+                    ]
+                    self.vector_store.add_documents(split_document, ids=ids)
+                    rebuilt_ids.update(ids)
+                    stale_ids = [item for item in old_ids + legacy_ids if item not in ids]
+                    if stale_ids:
+                        self.vector_store._collection.delete(ids=stale_ids)
+
+                    new_map[source] = md5_hex
+                    if previous_md5 is not None or legacy_md5 is not None:
+                        result["updated"] += 1
+                    else:
+                        result["added"] += 1
+                    logger.info(
+                        "[load KB] %s loaded successfully (%s chunks)",
+                        source,
+                        len(split_document),
+                    )
+                except Exception as e:
+                    result["failed"] += 1
+                    logger.error(
+                        f"[load KB] {source} failed to load: {str(e)}",
+                        exc_info=True,
+                    )
+                    if previous_md5:
+                        new_map[source] = previous_md5
+                    elif legacy_md5:
+                        new_map[path] = legacy_md5
+
+            # Remove sources that no longer exist, including legacy absolute paths.
+            for stored_source in set(old_map) - current_sources - current_legacy_paths:
+                self.delete_by_source(stored_source)
+                result["deleted"] += 1
+
+            # A legacy or missing manifest may contain unknown stale sources. Remove
+            # them only after every current source has rebuilt successfully.
+            if self._manifest_requires_rebuild and result["failed"] == 0:
+                all_ids = self.vector_store._collection.get(include=[]).get("ids", [])
+                orphan_ids = [item for item in all_ids if item not in rebuilt_ids]
+                if orphan_ids:
+                    self.vector_store._collection.delete(ids=orphan_ids)
+
+            self._save_md5_map(new_map)
+            if result["failed"]:
+                result["status"] = "partial"
+                with self._status_lock:
+                    self._status["last_error"] = (
+                        f"{result['failed']} knowledge file(s) failed to update"
+                    )
+            logger.info("[load KB] scan complete trigger=%s result=%s", trigger, result)
+            return result
+        except Exception as exc:
+            result["status"] = "error"
+            with self._status_lock:
+                self._status["last_error"] = str(exc)
+            logger.error("[load KB] scan failed trigger=%s err=%s", trigger, exc, exc_info=True)
+            return result
+        finally:
+            finished_at = time.time()
+            with self._status_lock:
+                self._status.update(
+                    running=False,
+                    last_finished_at=finished_at,
+                    last_result=result,
+                )
+            self._operation_lock.release()
 
 
-if __name__ == '__main__':
-    vs = VectorStoreService()
-
-    vs.load_document()
-
-    retriever = vs.get_retriever()
-
-    res = retriever.invoke("robot gets lost while navigating")
-    for r in res:
-        print(r.page_content)
-        print("-"*20)
+if __name__ == "__main__":
+    VectorStoreService().load_document(trigger="cli")
 
 

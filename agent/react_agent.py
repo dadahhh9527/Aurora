@@ -4,7 +4,7 @@ import uuid
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import SummarizationMiddleware, ModelCallLimitMiddleware
-from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
+from langchain_core.messages import AIMessageChunk
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 from model.factory import chat_model
@@ -14,6 +14,8 @@ from utils import settings
 from agent.tools.agent_tools import (rag_summarize, get_weather, get_user_location, get_user_id,
                                      get_current_month, fetch_external_data, fill_context_for_report)
 from agent.tools.middleware import monitor_tool, log_before_model, report_prompt_switch
+from services.runtime_context import reset_current_user_id, set_current_user_id
+from utils.content import content_to_text
 
 
 # Tool name -> user-facing status label
@@ -30,9 +32,11 @@ TOOL_LABELS = {
 
 class _MetadataSerde:
     """
-    兼容适配器：langgraph-checkpoint-sqlite 用 jsonplus_serde.dumps/loads 存 checkpoint 元数据，
-    而新版核心的 JsonPlusSerializer 只有 dumps_typed/loads_typed。元数据是纯 JSON 结构，
-    这里用标准 json 提供 dumps/loads，行为与旧版一致。
+    Compatibility adapter for checkpoint metadata.
+
+    langgraph-checkpoint-sqlite expects jsonplus_serde.dumps/loads, while newer
+    core serializers expose only typed methods. Metadata is plain JSON, so the
+    standard library provides the legacy interface safely.
     """
 
     def dumps(self, obj) -> bytes:
@@ -46,11 +50,14 @@ class _MetadataSerde:
 
 class ReactAgent:
     def __init__(self):
-        # 持久化记忆：存 SQLite，进程重启也不丢；配合前端“刷新换新 thread_id”实现会话隔离。
-        # check_same_thread=False：FastAPI 在线程池中处理请求，需允许跨线程复用连接。
-        conn = sqlite3.connect(get_abs_path(settings.MEMORY_DB_PATH), check_same_thread=False)
-        self.checkpointer = SqliteSaver(conn)
-        # 修正新旧版本序列化器接口不一致导致的元数据写入失败
+        # SQLite checkpoints survive restarts. FastAPI sync routes use a thread pool,
+        # so the connection allows cross-thread use; SqliteSaver serializes every
+        # cursor operation with its internal reentrant lock.
+        self._checkpoint_connection = sqlite3.connect(
+            get_abs_path(settings.MEMORY_DB_PATH), check_same_thread=False
+        )
+        self.checkpointer = SqliteSaver(self._checkpoint_connection)
+        # Bridge serializer interface differences across dependency versions.
         self.checkpointer.jsonplus_serde = _MetadataSerde()
         self.checkpointer.setup()
 
@@ -60,13 +67,13 @@ class ReactAgent:
             tools=[rag_summarize, get_weather, get_user_location, get_user_id,
                    get_current_month, fetch_external_data, fill_context_for_report],
             middleware=[
-                # 超出阈值时自动摘要旧消息，控制 token 成本与上下文长度
+                # Summarize old messages to bound context size and token cost.
                 SummarizationMiddleware(
                     model=chat_model,
                     trigger=("messages", settings.SUMMARY_TRIGGER_MESSAGES),
                     keep=("messages", settings.SUMMARY_KEEP_MESSAGES),
                 ),
-                # 单次对话内限制模型调用轮数，防止工具死循环烧钱
+                # Bound model calls per turn to prevent runaway tool loops.
                 ModelCallLimitMiddleware(run_limit=settings.MODEL_RUN_LIMIT, exit_behavior="end"),
                 monitor_tool,
                 log_before_model,
@@ -76,98 +83,73 @@ class ReactAgent:
         )
 
     @staticmethod
-    def _content_to_text(content) -> str:
-        """content 可能是 str，也可能是 list（多模态/分段），统一转成纯文本。"""
-        if isinstance(content, str):
-            return content
-        if isinstance(content, list):
-            parts = []
-            for item in content:
-                if isinstance(item, dict):
-                    parts.append(item.get("text", ""))
-                else:
-                    parts.append(str(item))
-            return "".join(parts)
-        return str(content) if content is not None else ""
-
-    @staticmethod
     def _config(thread_id: str | None):
-        # 没有传入 thread_id 时，退化为一次性会话（随机 id，不复用历史）
+        # Missing thread IDs create one-off conversations that do not reuse history.
         return {"configurable": {"thread_id": thread_id or f"anon-{uuid.uuid4().hex}"}}
 
-    def execute_events(self, query: str, thread_id: str | None = None):
+    @staticmethod
+    def _runtime_context(user_id: str, long_term_memory: str) -> dict:
+        return {
+            "report": False,
+            "user_id": user_id,
+            "long_term_memory": long_term_memory,
+        }
+
+    def execute_token_events(
+        self,
+        query: str,
+        thread_id: str | None = None,
+        *,
+        user_id: str,
+        long_term_memory: str = "",
+    ):
         """
-        （消息级）结构化事件流：thinking / tool / assistant。
-        保留作为不支持流式时的降级方案。
-        """
-        input_dict = {"messages": [{"role": "user", "content": query}]}
-        config = self._config(thread_id)
-        baseline = None
+        Stream token and tool events for the web client.
 
-        for chunk in self.agent.stream(input_dict, config=config, stream_mode="values", context={"report": False}):
-            messages = chunk["messages"]
-
-            if baseline is None:
-                baseline = len(messages)
-                continue
-
-            for msg in messages[baseline:]:
-                if isinstance(msg, HumanMessage):
-                    continue
-                if isinstance(msg, AIMessage):
-                    text = self._content_to_text(msg.content).strip()
-                    tool_calls = getattr(msg, "tool_calls", None) or []
-                    if tool_calls:
-                        if text:
-                            yield {"type": "thinking", "content": text}
-                        for call in tool_calls:
-                            name = call.get("name", "")
-                            yield {"type": "tool", "name": name, "label": TOOL_LABELS.get(name, "Working")}
-                    elif text:
-                        yield {"type": "assistant", "content": text}
-
-            baseline = len(messages)
-
-    def execute_token_events(self, query: str, thread_id: str | None = None):
-        """
-        （token 级）真流式事件流，供前端逐字渲染：
-          - {"type": "token", "mid": 消息id, "content": 增量文本}
-          - {"type": "tool",  "mid": 消息id, "name": ..., "label": ...}
-        前端根据 mid 分组：若某条消息随后出现 tool 事件，则它是“思考”，否则是最终回答。
+        The client groups events by message ID. Messages followed by a tool event
+        are internal model work; messages without a tool event are final output.
         """
         input_dict = {"messages": [{"role": "user", "content": query}]}
         config = self._config(thread_id)
         emitted_tools: set = set()
 
-        for chunk, meta in self.agent.stream(
-            input_dict, config=config, stream_mode="messages", context={"report": False}
-        ):
-            # 只取主 Agent 模型节点的输出，过滤掉摘要中间件等其它节点产生的 token
-            node = (meta or {}).get("langgraph_node")
-            if node not in (None, "model", "agent"):
-                continue
+        token = set_current_user_id(user_id)
+        try:
+            stream = self.agent.stream(
+                input_dict,
+                config=config,
+                stream_mode="messages",
+                context=self._runtime_context(user_id, long_term_memory),
+            )
+            for chunk, meta in stream:
+                # Keep only the main model node and ignore summarization middleware tokens.
+                node = (meta or {}).get("langgraph_node")
+                if node not in (None, "model", "agent"):
+                    continue
 
-            if not isinstance(chunk, AIMessageChunk):
-                continue
+                if not isinstance(chunk, AIMessageChunk):
+                    continue
 
-            mid = getattr(chunk, "id", None) or "cur"
+                mid = getattr(chunk, "id", None) or "cur"
 
-            delta = self._content_to_text(chunk.content)
-            if delta:
-                yield {"type": "token", "mid": mid, "content": delta}
+                delta = content_to_text(chunk.content)
+                if delta:
+                    yield {"type": "token", "mid": mid, "content": delta}
 
-            for tcc in (getattr(chunk, "tool_call_chunks", None) or []):
-                name = tcc.get("name")
-                index = tcc.get("index")
-                key = (mid, index)
-                if name and key not in emitted_tools:
-                    emitted_tools.add(key)
-                    yield {"type": "tool", "mid": mid, "name": name,
-                           "label": TOOL_LABELS.get(name, "Working")}
+                for tcc in (getattr(chunk, "tool_call_chunks", None) or []):
+                    name = tcc.get("name")
+                    index = tcc.get("index")
+                    key = (mid, index)
+                    if name and key not in emitted_tools:
+                        emitted_tools.add(key)
+                        yield {
+                            "type": "tool",
+                            "mid": mid,
+                            "name": name,
+                            "label": TOOL_LABELS.get(name, "Working"),
+                        }
+        finally:
+            reset_current_user_id(token)
 
-
-if __name__ == '__main__':
-    agent = ReactAgent()
-    tid = "demo-session"
-    for event in agent.execute_token_events("I live in a small apartment, which robot vacuum suits me?", thread_id=tid):
-        print(event)
+    def close(self) -> None:
+        self._checkpoint_connection.close()

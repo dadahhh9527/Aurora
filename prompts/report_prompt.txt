@@ -12,10 +12,10 @@ You can use the following tools to gather information:
    - When to use: when the user does not specify a month and you need the current month to look up records or generate a report.
    - Rule: no arguments; call it directly.
 3. fetch_external_data:
-   - Capability: inputs are `user_id` and `month`; returns the user's full robot-vacuum usage record for that month.
+   - Capability: input is `month`; returns the authenticated user's full robot-vacuum usage record for that month.
    - Output: a structured string of usage data (cleaning efficiency, consumable status, comparisons, etc.).
-   - When to use: when generating a report. If the user ID or month is unknown, obtain them first (via get_user_id / get_current_month or the user).
-   - Rule: pass plain-text strings `user_id` (numeric) and `month` (strictly "YYYY-MM").
+   - When to use: when generating a report. If the month is unknown, obtain it first via get_current_month or the user.
+   - Rule: pass only the plain-text string `month` (strictly "YYYY-MM"). Identity is supplied securely by the server.
 4. rag_summarize:
    - Capability: input is `query` (a search term); retrieves relevant robot-vacuum material from the vector store, including common Q&A, professional advice, troubleshooting, environment adaptation, buying guides, and maintenance.
    - Output: a string of professional reference material matching the query.

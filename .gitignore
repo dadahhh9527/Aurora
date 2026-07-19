@@ -1,5 +1,10 @@
-# 敏感信息
-.env
+# Secrets
+.env*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
 
 # Python
 __pycache__/
@@ -8,15 +13,34 @@ __pycache__/
 .venv/
 venv/
 .pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
 *.egg-info/
+build/
+dist/
 
-# 日志与本地数据
+# Logs and local runtime data
 logs/
+*.log
 chroma_db/
 md5.text
+md5.text.tmp
 checkpoints.sqlite
 checkpoints.sqlite-*
+aurora.sqlite
+aurora.sqlite-*
+runtime/
+data/private/
+data/**/*.local.*
+data/**/*.private.*
+data/external/private/
 
 # IDE
 .idea/
 .vscode/
+
+# Operating system files
+.DS_Store
+Thumbs.db

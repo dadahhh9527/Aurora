@@ -46,7 +46,7 @@ body {
   box-shadow: 0 0 0 1px var(--border), 0 30px 60px rgba(16, 40, 36, .06);
 }
 
-/* ---------- 顶部 ---------- */
+/* ---------- Header ---------- */
 .topbar {
   display: flex;
   align-items: center;
@@ -61,6 +61,26 @@ body {
 .brand__mark { display: flex; filter: drop-shadow(0 4px 8px rgba(13, 148, 136, .25)); }
 .brand__name { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: .5px; }
 .brand__sub { margin: 2px 0 0; font-size: 12px; color: var(--text-mute); }
+
+.topbar__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.topbar__button {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 9px;
+  font: inherit;
+  font-size: 12px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.topbar__button:hover { border-color: var(--brand-500); color: var(--brand-700); }
 
 .status {
   display: inline-flex;
@@ -85,7 +105,7 @@ body {
   100% { box-shadow: 0 0 0 0 rgba(20, 184, 166, 0); }
 }
 
-/* ---------- 消息区 ---------- */
+/* ---------- Messages ---------- */
 .messages {
   flex: 1;
   overflow-y: auto;
@@ -98,7 +118,7 @@ body {
 .messages::-webkit-scrollbar { width: 8px; }
 .messages::-webkit-scrollbar-thumb { background: #d7e2df; border-radius: 8px; }
 
-/* 欢迎区 */
+/* Welcome state */
 .welcome {
   margin: auto 0;
   text-align: center;
@@ -131,7 +151,7 @@ body {
 .chip:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); background: var(--brand-50); }
 .chip:active { transform: translateY(0); }
 
-/* 消息行 */
+/* Message rows */
 .row { display: flex; gap: 10px; align-items: flex-end; animation: fade-up .35s ease both; }
 .row--user { flex-direction: row-reverse; }
 
@@ -168,7 +188,7 @@ body {
   box-shadow: 0 6px 16px rgba(13, 148, 136, .25);
 }
 
-/* 流式光标 */
+/* Streaming cursor */
 .bubble--streaming::after {
   content: "";
   display: inline-block;
@@ -182,7 +202,7 @@ body {
 }
 @keyframes caret { 50% { opacity: 0; } }
 
-/* 回答内 Markdown 排版 */
+/* Markdown inside responses */
 .row--bot .bubble p { margin: 0 0 8px; }
 .row--bot .bubble p:last-child { margin-bottom: 0; }
 .row--bot .bubble ul,
@@ -214,7 +234,7 @@ body {
 }
 .row--bot .bubble a { color: var(--brand-600); text-decoration: underline; }
 
-/* 状态条（工具调用 / 思考中） */
+/* Tool-call and model-work status */
 .status-line {
   display: inline-flex;
   align-items: center;
@@ -238,7 +258,7 @@ body {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* 打字指示器 */
+/* Typing indicator */
 .typing { display: inline-flex; gap: 4px; padding: 4px 2px; }
 .typing span {
   width: 7px; height: 7px; border-radius: 50%;
@@ -252,7 +272,7 @@ body {
   40% { opacity: 1; transform: translateY(-3px); }
 }
 
-/* ---------- 输入区 ---------- */
+/* ---------- Composer ---------- */
 .composer {
   padding: 12px 18px 16px;
   border-top: 1px solid var(--border);
@@ -316,8 +336,12 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* 移动端 */
+/* Mobile */
 @media (max-width: 640px) {
+  .brand__sub, .status, #current-user { display: none; }
+  .topbar { padding-inline: 12px; }
+  .topbar__actions { gap: 5px; }
+  .topbar__button { padding: 6px; }
   .app { box-shadow: none; }
   .messages { padding: 20px 14px 6px; }
   .bubble { max-width: 82%; }

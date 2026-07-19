@@ -1,4 +1,4 @@
-external_data_path: data/external/records.csv
+external_data_path: ${EXTERNAL_DATA_PATH:-data/external/records.csv}
 
 # Weather via OpenWeatherMap (API key read from OPENWEATHER_API_KEY in the environment / .env)
 openweather_base_url: https://api.openweathermap.org

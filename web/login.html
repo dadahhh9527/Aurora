@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign in · Aurora</title>
+  <link rel="stylesheet" href="/static/management.css" />
+</head>
+<body>
+  <main class="panel">
+    <h1>Aurora</h1>
+    <p>Sign in with the account provided by your administrator.</p>
+    <form id="login-form">
+      <label>Username
+        <input id="username" autocomplete="username" required maxlength="80" />
+      </label>
+      <label>Password
+        <input id="password" type="password" autocomplete="current-password" required maxlength="256" />
+      </label>
+      <p id="error" class="error" role="alert"></p>
+      <button type="submit">Sign in</button>
+    </form>
+  </main>
+  <script src="/static/login.js"></script>
+</body>
+</html>

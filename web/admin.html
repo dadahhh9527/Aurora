@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Administration · Aurora</title>
+  <link rel="stylesheet" href="/static/management.css" />
+</head>
+<body>
+  <main class="admin-shell">
+    <header class="admin-header">
+      <div>
+        <h1>Aurora administration</h1>
+        <p>Create and manage internal users. Public registration is disabled.</p>
+      </div>
+      <a class="button secondary" href="/">Back to chat</a>
+    </header>
+
+    <section class="card">
+      <h2>Create user</h2>
+      <form id="create-user" class="inline-form">
+        <label>Username<input id="new-username" required minlength="3" /></label>
+        <label>Business user ID<input id="new-business-id" placeholder="e.g. 1001" /></label>
+        <label>Password<input id="new-password" type="password" required minlength="10" /></label>
+        <label>Role
+          <select id="new-role"><option value="user">User</option><option value="admin">Admin</option></select>
+        </label>
+        <button type="submit">Create</button>
+      </form>
+      <p id="user-error" class="error"></p>
+    </section>
+
+    <section class="card">
+      <div class="section-header"><h2>Users</h2><button id="refresh-users" class="secondary">Refresh</button></div>
+      <div id="users"></div>
+    </section>
+
+    <section class="card">
+      <div class="section-header">
+        <div><h2>Knowledge base</h2><p id="kb-status" class="muted">Loading status…</p></div>
+        <button id="scan-kb">Scan now</button>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="password-dialog">
+    <form id="reset-password">
+      <h2>Reset password</h2>
+      <p class="muted">Existing sessions will be revoked.</p>
+      <label>New password
+        <input id="reset-password-value" type="password" minlength="10" required autocomplete="new-password" />
+      </label>
+      <p id="password-error" class="error"></p>
+      <div class="row-actions">
+        <button id="cancel-password-reset" class="secondary" type="button">Cancel</button>
+        <button type="submit">Reset password</button>
+      </div>
+    </form>
+  </dialog>
+  <script src="/static/admin.js"></script>
+</body>
+</html>
